@@ -54,7 +54,6 @@ export function encodeAudioEvent(audioData: Uint8Array): Uint8Array {
   // Build message
   const message = new Uint8Array(totalLength)
   const view = new DataView(message.buffer)
-
   let offset = 0
 
   // Total message length (excluding this 4-byte field)
@@ -108,6 +107,7 @@ function encodeHeaders(headers: Record<string, string>): Uint8Array {
   const totalLength = parts.reduce((sum, p) => sum + p.length, 0)
   const result = new Uint8Array(totalLength)
   let offset = 0
+
   for (const part of parts) {
     result.set(part, offset)
     offset += part.length
@@ -123,7 +123,6 @@ export function decodeTranscribeResponse(data: Uint8Array): any {
   try {
     // Skip EventStream header and decode the payload as JSON
     // Response format: [header bytes][json payload][crc]
-
     // Try to find JSON in the response
     const text = new TextDecoder().decode(data)
 

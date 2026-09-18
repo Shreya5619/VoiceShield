@@ -1,27 +1,35 @@
 {
-  "name": "voiceshield-frontend",
-  "private": true,
+  "name": "voiceshield",
   "version": "1.0.0",
-  "type": "module",
+  "description": "Real-time voice transcription with AI scam detection",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
-  },
-  "dependencies": {
-    "@aws-sdk/client-transcribe-streaming": "^3.1135.0",
-    "@aws-sdk/eventstream-marshaller": "^3.118.1",
-    "@aws-sdk/util-utf8-node": "^3.259.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "ws": "^8.21.3"
+    "dev": "npm run dev --workspace=frontend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "dev:backend": "node backend/server.mjs",
+    "dev:all": "npm run dev:frontend & npm run dev:backend",
+    "build": "npm run build --workspace=frontend",
+    "preview": "npm run preview --workspace=frontend",
+    "lint": "npm run lint --workspace=frontend",
+    "install:all": "npm install && npm install --workspace=frontend && cd backend && pip install -r requirements.txt"
   },
   "devDependencies": {
-    "@types/react": "^18.2.43",
-    "@types/react-dom": "^18.2.17",
-    "@vitejs/plugin-react": "^4.2.1",
-    "typescript": "^5.2.2",
-    "vite": "^5.0.8"
-  }
+    "@types/node": "^20.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "keywords": [
+    "transcription",
+    "voice",
+    "scam-detection",
+    "aws",
+    "react",
+    "typescript"
+  ]
 }

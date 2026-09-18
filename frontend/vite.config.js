@@ -29,7 +29,7 @@ export default defineConfig({
         minify: 'terser',
     },
     define: {
-        'import.meta.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL || 'http://localhost:3001'),
+        'import.meta.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL || 'http://localhost:5000'),
         'import.meta.env.VITE_WS_URL': JSON.stringify(process.env.VITE_WS_URL || 'ws://localhost:8080'),
         'import.meta.env.VITE_AUTH_URL': JSON.stringify(process.env.VITE_AUTH_URL || 'http://localhost:3000/auth'),
     },

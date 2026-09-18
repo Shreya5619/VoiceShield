@@ -34,7 +34,6 @@ export class AudioEncoder {
   constructor(config: AudioEncoderConfig) {
     this.config = config
     this.chunkSize = Math.floor((config.sampleRate * config.chunkDurationMs) / 1000)
-
     // Pre-allocate buffer for accumulating samples
     this.buffer = new Float32Array(this.chunkSize * 2) // 2x to handle partial chunks
   }
@@ -55,7 +54,6 @@ export class AudioEncoder {
       if (this.bufferPosition >= this.chunkSize) {
         const chunk = this.createChunk()
         chunks.push(chunk)
-
         // Shift remaining samples to start of buffer
         this.bufferPosition = 0
       }

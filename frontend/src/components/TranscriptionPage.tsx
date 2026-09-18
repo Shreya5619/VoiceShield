@@ -1,10 +1,11 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { ConnectionState, TranscriptionSegment } from '../types'
 import AudioRecorder from './AudioRecorder'
 import TranscriptionDisplay from './TranscriptionDisplay'
 import ConnectionStatus from './ConnectionStatus'
 import ErrorAlert from './ErrorAlert'
 import TranscribeConnectionTest from './TranscribeConnectionTest'
+import ScamPredictionPanel from './ScamPredictionPanel'
 import '../styles/TranscriptionPage.css'
 
 interface TranscriptionPageProps {
@@ -46,6 +47,15 @@ export const TranscriptionPage: React.FC<TranscriptionPageProps> = ({
       await onStartRecording?.()
     }
   }, [isRecording, onStartRecording, onStopRecording])
+
+  // Get combined transcript from all segments + partial
+  const fullTranscript = useMemo(() => {
+    const segmentText = segments
+      .map((seg) => seg.alternatives?.[0]?.transcript || '')
+      .join(' ')
+    const partialText = currentPartialResult?.alternatives?.[0]?.transcript || ''
+    return `${segmentText} ${partialText}`.trim()
+  }, [segments, currentPartialResult])
 
   return (
     <div className="transcription-page">
@@ -132,6 +142,16 @@ export const TranscriptionPage: React.FC<TranscriptionPageProps> = ({
               <TranscribeConnectionTest />
             </div>
           </section>
+
+          {/* Scam Prediction Panel */}
+          {fullTranscript && (
+            <section className="scam-detection-section">
+              <ScamPredictionPanel
+                transcript={fullTranscript}
+                isVisible={true}
+              />
+            </section>
+          )}
 
           {/* Transcription Display Section */}
           <section className="transcription-section">

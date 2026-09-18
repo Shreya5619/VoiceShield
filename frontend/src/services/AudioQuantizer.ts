@@ -18,18 +18,15 @@ function float32ToInt16Sample(sample: number): number {
   if (isNaN(sample)) {
     return 0
   }
-
   if (sample === Infinity) {
     return 32767
   }
-
   if (sample === -Infinity) {
     return -32768
   }
 
   // Clamp to valid range [-1.0, 1.0]
   let clipped = sample
-
   if (sample > 1.0) {
     clipped = 1.0
   } else if (sample < -1.0) {
@@ -75,7 +72,6 @@ export class AudioQuantizer {
     const outputData = new Int16Array(sampleCount * channelCount)
 
     let outputIndex = 0
-
     for (let i = 0; i < sampleCount; i++) {
       for (let c = 0; c < channelCount; c++) {
         outputData[outputIndex++] = float32ToInt16Sample(channels[c][i])
@@ -114,13 +110,10 @@ export class AudioQuantizer {
 
     for (let i = 0; i < data.length; i++) {
       const sample = data[i]
-
       if (sample < min) min = sample
       if (sample > max) max = sample
-
       sum += sample
       sumOfSquares += sample * sample
-
       if (sample === 0) zeroCount++
     }
 

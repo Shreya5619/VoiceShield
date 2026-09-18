@@ -2,7 +2,6 @@
  * useTranscription - Direct React hook for Amazon Transcribe streaming
  * Uses official AWS SDK v3 which handles WebSocket internally
  */
-
 import { useState, useCallback, useRef, useEffect } from 'react'
 import {
   TranscribeStreamingClient,
@@ -33,6 +32,7 @@ export interface UseTranscriptionResult {
   startRecording: () => Promise<void>
   stopRecording: () => void
   reset: () => void
+  sendToBackend: (transcript: string) => Promise<any>
 }
 
 export function useTranscription(config: UseTranscriptionConfig = {}): UseTranscriptionResult {
@@ -133,7 +133,7 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
       })
       clientRef.current = client
 
-      console.log('✓ Transcribe client created')
+      
       setConnectionState(ConnectionState.Connected)
       setIsTranscribing(true)
 
@@ -151,16 +151,15 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
           // Quantize to int16
           const quantized = AudioQuantizer.quantize(resampled)
           const audioData = new Uint8Array(quantized.buffer)
-
-          console.log(`🎵 Audio frame: ${audioData.length} bytes`)
+          
 
           // Push to queue
           audioChunks.push(audioData)
-          console.log(`📦 Queue now has ${audioChunks.length} chunks`)
+          
 
           // Resolve pending promise if exists
           if (audioResolver) {
-            console.log('🔔 Resolving pending audio resolver')
+            
             audioResolver() // Just resolve - chunks are already in the queue
             audioResolver = null
           }
@@ -171,19 +170,19 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
 
       // Audio stream async generator
       const audioStream = async function* () {
-        console.log('🔄 Audio stream generator started')
+        
         let frameCount = 0
         while (isRecordingRef.current && !abortController.signal.aborted) {
           if (audioChunks.length > 0) {
             const chunk = audioChunks.shift()
             if (chunk) {
               frameCount++
-              console.log(`📨 Yielding frame #${frameCount}: ${chunk.length} bytes (queue: ${audioChunks.length})`)
+              
               yield { AudioEvent: { AudioChunk: chunk } }
             }
           } else {
             // Wait for more audio
-            console.log(`⏳ Waiting for audio (have ${frameCount} frames so far, queue: ${audioChunks.length})`)
+            
             await new Promise<void>((resolve) => {
               audioResolver = () => {
                 resolve()
@@ -204,7 +203,7 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
 
       // Start capturing audio
       processor.start()
-      console.log('✓ Audio capture started')
+      
 
       // Send to Transcribe
       const command = new StartStreamTranscriptionCommand({
@@ -214,7 +213,7 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
         AudioStream: audioStream(),
       })
 
-      console.log('📤 Sending to Transcribe...')
+      
       const response = await client.send(command, { abortSignal: abortController.signal })
 
       // Process results
@@ -227,20 +226,16 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
           console.log(`📨 Event #${++eventCount}:`, Object.keys(event))
 
           if (event.TranscriptEvent) {
-            console.log('✓ TranscriptEvent received')
             const transcript = event.TranscriptEvent.Transcript
             if (transcript?.Results) {
-              console.log(`📊 Results: ${transcript.Results.length}`)
+              
               for (const result of transcript.Results) {
-                console.log('Result:', {
-                  isPartial: result.IsPartial,
-                  alternatives: result.Alternatives?.length,
-                  transcript: result.Alternatives?.[0]?.Transcript,
-                })
+            
+
                 if (result.Alternatives && result.Alternatives.length > 0) {
                   const alt = result.Alternatives[0]
                   const isPartial = result.IsPartial ?? false
-
+                  console.log('Result details:', { isPartial, transcript: alt.Transcript, IsPartial: result.IsPartial })
                   const segment: TranscriptionSegment = {
                     id: `seg-${segmentIdRef.current++}`,
                     transcript: alt.Transcript || '',
@@ -258,13 +253,19 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
                   } else {
                     setCurrentPartial(null)
                     setSegments((prev) => [...prev, segment])
+                    // IMPLEMENT THIS PART: Send final transcript to backend
+                    console.log('🔌 Calling sendToBackend with:', segment.transcript)
+                    sendToBackend(segment.transcript).catch(err => {
+                      console.error('❌ Failed to send to backend:', err)
+                    })
                   }
                 }
               }
             }
           }
         }
-        console.log(`✓ Result stream ended after ${eventCount} events`)
+
+        
       } else {
         console.warn('⚠️ No TranscriptResultStream in response')
       }
@@ -279,10 +280,36 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
   }, [config])
 
   /**
+   * Send transcribed text to backend for scam prediction
+   */
+  const sendToBackend = useCallback(async (transcript: string) => {
+    try {
+      const apiUrl = 'http://localhost:5000'
+      console.log(`📤 Using apiUrl: ${apiUrl}`)
+      console.log(`📤 Sending to backend: "${transcript}"`)
+      
+      const response = await fetch(`${apiUrl}/api/predict-scam`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript }),
+      })
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      
+      const prediction = await response.json()
+      console.log('🔍 Scam detection result:', prediction)
+      return prediction
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err))
+      console.error('❌ Backend error:', error)
+      throw error
+    }
+  }, [])
+
+  /**
    * Stop recording
    */
   const stopRecording = useCallback(() => {
-    console.log('Stopping recording...')
     isRecordingRef.current = false
     setIsRecording(false)
     setIsTranscribing(false)
@@ -336,6 +363,7 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
     startRecording,
     stopRecording,
     reset,
+    sendToBackend,
   }
 }
 

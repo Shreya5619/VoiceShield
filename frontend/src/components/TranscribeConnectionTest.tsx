@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { testTranscribeConnection } from '../services/TranscribeTest'
 
 interface TestStatus {
   state: 'idle' | 'testing' | 'success' | 'error'
@@ -10,34 +9,45 @@ interface TestStatus {
 export function TranscribeConnectionTest() {
   const [testStatus, setTestStatus] = useState<TestStatus>({
     state: 'idle',
-    message: 'Click to test Transcribe connection',
+    message: 'Click to test backend connection',
   })
 
   const handleTest = async () => {
-    setTestStatus({ state: 'testing', message: '🧪 Testing connection...' })
+    setTestStatus({ state: 'testing', message: '🧪 Testing backend connection...' })
 
-    // Get credentials from env
-    const credentials = {
-      accessKeyId: (import.meta as any).env.VITE_AWS_ACCESS_KEY_ID || 'mock-key',
-      secretAccessKey: (import.meta as any).env.VITE_AWS_SECRET_ACCESS_KEY || 'mock-secret',
-      sessionToken: (import.meta as any).env.VITE_AWS_SESSION_TOKEN,
-      region: (import.meta as any).env.VITE_AWS_REGION || 'us-east-1',
-      languageCode: (import.meta as any).env.VITE_AWS_LANGUAGE || 'en-US',
-    }
+    try {
+      // Test backend health endpoint
+      const response = await fetch('http://localhost:5000/health')
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
 
-    const result = await testTranscribeConnection(credentials)
+      const data = await response.json()
 
-    if (result.success) {
       setTestStatus({
         state: 'success',
-        message: result.message,
-        details: result.details,
+        message: '✓ Backend connection successful!',
+        details: {
+          status: data.status,
+          transcribeProxy: data.message,
+          pythonBackendReady: data.pythonBackendReady ? 'Yes' : 'No',
+          url: 'ws://localhost:5000',
+        },
       })
-    } else {
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
       setTestStatus({
         state: 'error',
-        message: result.message,
-        details: result.error ? { error: result.error, ...result.details } : result.details,
+        message: '❌ Backend connection failed',
+        details: {
+          error: errorMsg,
+          checkpoints: [
+            '1. Is backend running? (node server.mjs)',
+            '2. Check port 5000 is available',
+            '3. Check if Python backend started',
+          ],
+        },
       })
     }
   }
@@ -100,7 +110,7 @@ export function TranscribeConnectionTest() {
           opacity: testStatus.state === 'testing' ? 0.7 : 1,
         }}
       >
-        {testStatus.state === 'testing' ? '🧪 Testing...' : '🧪 Test Transcribe Connection'}
+        {testStatus.state === 'testing' ? '🧪 Testing...' : '🧪 Test Backend Connection'}
       </button>
 
       {testStatus.state !== 'idle' && (
@@ -110,7 +120,20 @@ export function TranscribeConnectionTest() {
             <div>
               {Object.entries(testStatus.details).map(([key, value]) => (
                 <div key={key} style={{ marginTop: '0.25rem', opacity: 0.8 }}>
-                  <span style={{ color: 'rgba(255,255,255,0.6)' }}>{key}:</span> {String(value)}
+                  {Array.isArray(value) ? (
+                    <div>
+                      <span style={{ color: 'rgba(255,255,255,0.6)' }}>{key}:</span>
+                      <ul style={{ margin: '0.25rem 0 0 1.5rem', padding: 0 }}>
+                        {value.map((item, i) => (
+                          <li key={i}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : (
+                    <>
+                      <span style={{ color: 'rgba(255,255,255,0.6)' }}>{key}:</span> {String(value)}
+                    </>
+                  )}
                 </div>
               ))}
             </div>
