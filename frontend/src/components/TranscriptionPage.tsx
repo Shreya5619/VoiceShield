@@ -6,6 +6,7 @@ import ConnectionStatus from './ConnectionStatus'
 import ErrorAlert from './ErrorAlert'
 import TranscribeConnectionTest from './TranscribeConnectionTest'
 import ScamPredictionPanel from './ScamPredictionPanel'
+import ScamAnalysisPanel from './ScamAnalysisPanel'
 import '../styles/TranscriptionPage.css'
 
 interface TranscriptionPageProps {
@@ -48,14 +49,14 @@ export const TranscriptionPage: React.FC<TranscriptionPageProps> = ({
     }
   }, [isRecording, onStartRecording, onStopRecording])
 
-  // Get combined transcript from all segments + partial
+  // Get combined transcript from all final segments
   const fullTranscript = useMemo(() => {
-    const segmentText = segments
-      .map((seg) => seg.alternatives?.[0]?.transcript || '')
+    return segments
+      .map((seg) => seg.transcript)
+      .filter(Boolean)
       .join(' ')
-    const partialText = currentPartialResult?.alternatives?.[0]?.transcript || ''
-    return `${segmentText} ${partialText}`.trim()
-  }, [segments, currentPartialResult])
+      .trim()
+  }, [segments])
 
   return (
     <div className="transcription-page">
@@ -152,6 +153,14 @@ export const TranscriptionPage: React.FC<TranscriptionPageProps> = ({
               />
             </section>
           )}
+
+          {/* AI Analysis Panel — shows LLM summary + verification questions when scam detected */}
+          <section className="scam-detection-section">
+            <ScamAnalysisPanel
+              transcript={fullTranscript}
+              isVisible={true}
+            />
+          </section>
 
           {/* Transcription Display Section */}
           <section className="transcription-section">

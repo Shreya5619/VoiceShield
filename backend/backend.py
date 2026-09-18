@@ -5,12 +5,15 @@ Frontend sends transcribed text, backend returns scam predictions using ML model
 
 import sys
 import re
+import os
+from dotenv import load_dotenv
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 from typing import Optional
 import joblib
+import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import os
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -158,6 +161,91 @@ async def predict_scam(request_data: PredictionRequest):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+class AnalyzeScamRequest(BaseModel):
+    transcript: str
+
+class AnalyzeScamResponse(BaseModel):
+    is_scam: bool
+    scam_probability: float
+    safe_probability: float
+    confidence_level: str
+    triggers_detected: list
+    summary: Optional[str] = None
+    verification_questions: Optional[list] = None
+    risk_level: Optional[str] = None
+    analysis_error: Optional[str] = None
+
+
+@app.post("/api/analyze-scam", response_model=AnalyzeScamResponse)
+async def analyze_scam(request_data: AnalyzeScamRequest):
+    """
+    Orchestrates scam prediction + optional AgentCore deep analysis.
+    - Always runs the ML model first
+    - If is_scam=True, calls the AgentCore service for LLM analysis
+    - Returns merged result; gracefully degrades if AgentCore is unavailable
+    """
+    transcript = request_data.transcript.strip()
+    if not transcript:
+        raise HTTPException(status_code=400, detail="Empty transcript")
+
+    if not scam_model:
+        raise HTTPException(status_code=500, detail="Scam model not loaded")
+
+    # Step 1: Run ML prediction
+    try:
+        probability = float(scam_model.predict_proba([transcript])[0][1])
+        prediction = scam_model.predict([transcript])[0]
+        triggers = detect_triggers(transcript)
+        if probability >= 0.90 or probability <= 0.10:
+            confidence = "HIGH"
+        elif probability >= 0.70 or probability <= 0.30:
+            confidence = "MEDIUM"
+        else:
+            confidence = "LOW"
+
+        pred_result = {
+            "is_scam": bool(prediction),
+            "scam_probability": round(probability, 3),
+            "safe_probability": round(1 - probability, 3),
+            "confidence_level": confidence,
+            "triggers_detected": triggers,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    # Step 2: If not a scam, return prediction only
+    if not pred_result["is_scam"]:
+        return AnalyzeScamResponse(**pred_result)
+
+    # Step 3: Call AgentCore for LLM analysis
+    agentcore_url = os.getenv("AGENTCORE_INVOCATION_URL", "http://localhost:8080/invocations")
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                agentcore_url,
+                json={
+                    "transcript": transcript,
+                    "prediction": pred_result,
+                },
+                headers={"Content-Type": "application/json"},
+            )
+            response.raise_for_status()
+            analysis = response.json()
+            return AnalyzeScamResponse(
+                **pred_result,
+                summary=analysis.get("summary"),
+                verification_questions=analysis.get("verification_questions"),
+                risk_level=analysis.get("risk_level"),
+            )
+    except httpx.TimeoutException:
+        return AnalyzeScamResponse(**pred_result, analysis_error="AgentCore request timed out after 30s")
+    except httpx.ConnectError:
+        return AnalyzeScamResponse(**pred_result, analysis_error="AgentCore service unavailable (connection refused)")
+    except Exception as e:
+        return AnalyzeScamResponse(**pred_result, analysis_error=f"AgentCore error: {str(e)}")
+
 
 @app.get("/api/health")
 async def health():

@@ -1,0 +1,144 @@
+.scam-analysis-panel {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border: 1px solid rgba(255, 68, 68, 0.25);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin: 1rem 0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.scam-analysis-panel .panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(255, 68, 68, 0.15);
+}
+
+.scam-analysis-panel .panel-header h3 {
+  margin: 0;
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.scam-analysis-panel .loading-spinner {
+  display: inline-block;
+  padding: 0.4rem 0.9rem;
+  background: rgba(100, 108, 255, 0.15);
+  border: 1px solid rgba(100, 108, 255, 0.3);
+  border-radius: 20px;
+  color: #646cff;
+  font-size: 0.85rem;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.analysis-loading {
+  text-align: center;
+  padding: 1.5rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.9rem;
+}
+
+.analysis-error {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  background: rgba(255, 152, 0, 0.1);
+  border: 1px solid rgba(255, 152, 0, 0.3);
+  border-radius: 8px;
+  color: #ffb74d;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.analysis-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.risk-level-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.2rem;
+  border: 2px solid;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  background: rgba(255, 68, 68, 0.08);
+  align-self: flex-start;
+}
+
+.analysis-summary {
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(100, 108, 255, 0.1);
+  border-radius: 8px;
+}
+
+.analysis-summary h4 {
+  margin: 0 0 0.75rem 0;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.analysis-summary p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.verification-questions {
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(100, 108, 255, 0.1);
+  border-radius: 8px;
+}
+
+.verification-questions h4 {
+  margin: 0 0 0.75rem 0;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.verification-questions ol {
+  margin: 0;
+  padding-left: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.verification-questions li {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid rgba(100, 108, 255, 0.06);
+}
+
+.verification-questions li:last-child {
+  border-bottom: none;
+}
+
+@media (max-width: 768px) {
+  .scam-analysis-panel {
+    padding: 1rem;
+    margin: 0.75rem 0;
+  }
+}

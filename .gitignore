@@ -27,6 +27,8 @@ dist-ssr
 .env.*.local
 backend/.env
 !backend/.env.example
+agentcore/.env
+agentcore/*.env
 
 # Build outputs
 build/

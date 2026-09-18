@@ -190,7 +190,7 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
               // If no audio arrives in 200ms, continue anyway (in case of silence)
               setTimeout(() => {
                 if (audioResolver) {
-                  console.log('⏱️ Audio timeout, continuing')
+                  
                   audioResolver = null
                 }
                 resolve()
@@ -223,7 +223,7 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
         for await (const event of response.TranscriptResultStream) {
           if (abortController.signal.aborted) break
 
-          console.log(`📨 Event #${++eventCount}:`, Object.keys(event))
+          
 
           if (event.TranscriptEvent) {
             const transcript = event.TranscriptEvent.Transcript
@@ -288,7 +288,7 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
       console.log(`📤 Using apiUrl: ${apiUrl}`)
       console.log(`📤 Sending to backend: "${transcript}"`)
       
-      const response = await fetch(`${apiUrl}/api/predict-scam`, {
+      const response = await fetch(`${apiUrl}/api/analyze-scam`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ transcript }),

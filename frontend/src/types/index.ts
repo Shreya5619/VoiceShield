@@ -214,3 +214,21 @@ export interface UIState {
   retryCountdown: number; // seconds
   isRetrying: boolean;
 }
+
+/**
+ * Scam Analysis Result — merged response from POST /api/analyze-scam
+ * Combines ML prediction with optional LLM analysis from AgentCore
+ */
+export interface ScamAnalysisResult {
+  is_scam: boolean
+  scam_probability: number
+  safe_probability: number
+  confidence_level: 'HIGH' | 'MEDIUM' | 'LOW'
+  triggers_detected: string[]
+  // Present when is_scam=true and AgentCore succeeded
+  summary?: string
+  verification_questions?: string[]
+  risk_level?: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
+  // Present when AgentCore failed
+  analysis_error?: string
+}
