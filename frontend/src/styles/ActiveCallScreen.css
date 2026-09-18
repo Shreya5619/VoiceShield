@@ -479,6 +479,54 @@
   40%           { transform: translateY(-6px); }
 }
 
+/* call actions */
+.freeze-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+}
+
+.freeze-resume-btn,
+.freeze-spam-btn {
+  width: 100%;
+  border-radius: 10px;
+  padding: 0.7rem 1rem;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.freeze-resume-btn:active,
+.freeze-spam-btn:active {
+  transform: scale(0.985);
+}
+
+.freeze-resume-btn {
+  background: #4ade80;
+  border: 1px solid #4ade80;
+  color: #07130b;
+}
+
+.freeze-resume-btn:hover {
+  background: #6ee7a0;
+  border-color: #6ee7a0;
+}
+
+.freeze-spam-btn {
+  background: rgba(255, 68, 68, 0.1);
+  border: 1px solid rgba(255, 68, 68, 0.45);
+  color: #ff8888;
+}
+
+.freeze-spam-btn:hover {
+  background: rgba(255, 68, 68, 0.18);
+  border-color: #ff6666;
+  color: #ffaaaa;
+}
+
 /* ============================================================
    Speakable question buttons inside FreezeOverlay
    ============================================================ */

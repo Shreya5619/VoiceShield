@@ -1,4 +1,4 @@
-"""
+﻿"""
 Python FastAPI backend for Scam Detection + Speaker Embedding
 Frontend sends transcribed text for scam prediction, or a WAV audio file for
 speaker embedding generation via SpeechBrain ECAPA-TDNN.
@@ -10,11 +10,14 @@ import os
 import io
 import tempfile
 import base64
+import uuid
+from decimal import Decimal
 from dotenv import load_dotenv
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 from typing import Optional, List
 import joblib
 import httpx
+import boto3
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -61,7 +64,7 @@ speaker_model = None
 print("📦 Loading SpeechBrain ECAPA-TDNN speaker encoder...")
 try:
     # Import here so the rest of the backend works even if speechbrain isn't installed
-    from speechbrain.pretrained import EncoderClassifier
+    from speechbrain.inference.classifiers import EncoderClassifier
     speaker_model = EncoderClassifier.from_hparams(
         source="speechbrain/spkrec-ecapa-voxceleb",
         savedir=_SPEECHBRAIN_MODEL_DIR,
@@ -200,6 +203,106 @@ class AnalyzeScamResponse(BaseModel):
     verification_questions: Optional[list] = None
     risk_level: Optional[str] = None
     analysis_error: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Family members stored in DynamoDB. Audio is used only by the embedding
+# endpoint and is never included in these records.
+# ---------------------------------------------------------------------------
+FAMILY_TABLE_NAME = os.getenv("VOICESHIELD_FAMILY_TABLE", "VoiceShieldFamilyMembers")
+_dynamodb_table = None
+
+
+class SpeakerEmbeddingRecord(BaseModel):
+    vector: List[float]
+    dim: int
+    generatedAt: str
+
+
+class FamilyMemberRequest(BaseModel):
+    owner_phone: str
+    name: str
+    relation: str = ""
+    phone: str
+    security_question: str = ""
+    speaker_embedding: Optional[SpeakerEmbeddingRecord] = None
+
+
+class FamilyMemberResponse(FamilyMemberRequest):
+    id: str
+
+
+def family_table():
+    global _dynamodb_table
+    if _dynamodb_table is None:
+        _dynamodb_table = boto3.resource(
+            "dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1")
+        ).Table(FAMILY_TABLE_NAME)
+    return _dynamodb_table
+
+
+def family_item_to_response(item: dict) -> FamilyMemberResponse:
+    return FamilyMemberResponse(
+        id=item["id"],
+        owner_phone=item["owner_phone"],
+        name=item["name"],
+        relation=item.get("relation", ""),
+        phone=item["phone"],
+        security_question=item.get("security_question", ""),
+        speaker_embedding=item.get("speaker_embedding"),
+    )
+
+
+def decimalize(value):
+    if isinstance(value, float):
+        return Decimal(str(value))
+    if isinstance(value, dict):
+        return {key: decimalize(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [decimalize(item) for item in value]
+    return value
+
+
+@app.get("/api/family-members", response_model=List[FamilyMemberResponse])
+async def list_family_members(owner_phone: str):
+    try:
+        response = family_table().query(
+            KeyConditionExpression=boto3.dynamodb.conditions.Key("owner_phone").eq(owner_phone)
+        )
+        return [family_item_to_response(item) for item in response.get("Items", [])]
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Family contacts unavailable: {exc}")
+
+
+@app.post("/api/family-members", response_model=FamilyMemberResponse)
+async def create_family_member(request_data: FamilyMemberRequest):
+    item = decimalize(request_data.model_dump())
+    item["id"] = f"contact-{uuid.uuid4().hex}"
+    try:
+        family_table().put_item(Item=item)
+        return family_item_to_response(item)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Family contact could not be saved: {exc}")
+
+
+@app.put("/api/family-members/{member_id}", response_model=FamilyMemberResponse)
+async def update_family_member(member_id: str, request_data: FamilyMemberRequest):
+    item = decimalize(request_data.model_dump())
+    item["id"] = member_id
+    try:
+        family_table().put_item(Item=item)
+        return family_item_to_response(item)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Family contact could not be updated: {exc}")
+
+
+@app.delete("/api/family-members/{member_id}")
+async def delete_family_member(member_id: str, owner_phone: str):
+    try:
+        family_table().delete_item(Key={"owner_phone": owner_phone, "id": member_id})
+        return {"deleted": True}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Family contact could not be deleted: {exc}")
 
 
 import asyncio
@@ -396,6 +499,80 @@ async def generate_speaker_embedding(audio: UploadFile = File(...)):
         raise HTTPException(
             status_code=500, detail=f"Embedding generation failed: {str(e)}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Voice comparison endpoint
+# ---------------------------------------------------------------------------
+
+class VoiceCompareResponse(BaseModel):
+    similarity: float          # cosine similarity [-1, 1]
+    match_percent: float       # (similarity + 1) / 2 * 100, clamped [0, 100]
+    embedding_a_dim: int
+    embedding_b_dim: int
+
+
+def _wav_bytes_to_embedding(audio_bytes: bytes):
+    """Shared helper: decode WAV bytes → ECAPA-TDNN 192-d vector (torch.Tensor)."""
+    import torch
+    import torchaudio
+
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+        tmp.write(audio_bytes)
+        tmp_path = tmp.name
+    try:
+        waveform, sample_rate = torchaudio.load(tmp_path)
+        if sample_rate != 16000:
+            waveform = torchaudio.transforms.Resample(sample_rate, 16000)(waveform)
+        if waveform.shape[0] > 1:
+            waveform = waveform.mean(dim=0, keepdim=True)
+        waveform = waveform.squeeze(0).unsqueeze(0)  # [1, T]
+        with torch.no_grad():
+            emb = speaker_model.encode_batch(waveform)  # [1, 1, 192]
+        return emb.squeeze()  # [192]
+    finally:
+        os.unlink(tmp_path)
+
+
+@app.post("/api/compare-voices", response_model=VoiceCompareResponse)
+async def compare_voices(
+    audio_a: UploadFile = File(...),
+    audio_b: UploadFile = File(...),
+):
+    """
+    Accept two WAV files and return cosine similarity + match percentage.
+    match_percent = (cosine_similarity + 1) / 2 * 100  →  0 % (opposite) .. 100 % (identical)
+    """
+    if speaker_model is None:
+        raise HTTPException(status_code=503, detail="Speaker embedding model is not available.")
+
+    bytes_a = await audio_a.read()
+    bytes_b = await audio_b.read()
+    if not bytes_a or not bytes_b:
+        raise HTTPException(status_code=400, detail="Both audio files must be non-empty.")
+
+    try:
+        import torch
+        vec_a = _wav_bytes_to_embedding(bytes_a)
+        vec_b = _wav_bytes_to_embedding(bytes_b)
+
+        # Cosine similarity
+        cos_sim = float(
+            torch.nn.functional.cosine_similarity(
+                vec_a.unsqueeze(0), vec_b.unsqueeze(0)
+            ).item()
+        )
+        # Map [-1, 1] → [0, 100]
+        match_pct = round(max(0.0, min(100.0, (cos_sim + 1) / 2 * 100)), 2)
+
+        return VoiceCompareResponse(
+            similarity=round(cos_sim, 6),
+            match_percent=match_pct,
+            embedding_a_dim=int(vec_a.shape[0]),
+            embedding_b_dim=int(vec_b.shape[0]),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Comparison failed: {str(e)}")
 
 def run_backend():
     """Run the FastAPI backend server"""

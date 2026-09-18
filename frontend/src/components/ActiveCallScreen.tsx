@@ -292,6 +292,11 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({ caller, onEn
           result={bedrockResult}
           isLoading={bedrockLoading}
           onDismiss={() => setShowFreeze(false)}
+          onResumeCall={() => {
+            setIsMuted(false)
+            setShowFreeze(false)
+          }}
+          onMarkAsSpam={handleEndCall}
         />
       )}
     </>

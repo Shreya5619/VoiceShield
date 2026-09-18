@@ -12,10 +12,11 @@ import ActiveCallScreen from './ActiveCallScreen'
 type CallPhase = 'picking' | 'incoming' | 'active'
 
 interface CallTabProps {
+  ownerPhone: string
   onGoToContacts: () => void
 }
 
-export const CallTab: React.FC<CallTabProps> = ({ onGoToContacts }) => {
+export const CallTab: React.FC<CallTabProps> = ({ ownerPhone, onGoToContacts }) => {
   const [phase, setPhase] = useState<CallPhase>('picking')
   const [caller, setCaller] = useState<CallerInfo | null>(null)
 
@@ -60,6 +61,7 @@ export const CallTab: React.FC<CallTabProps> = ({ onGoToContacts }) => {
   // default: picking
   return (
     <CallerPicker
+      ownerPhone={ownerPhone}
       onStartCall={handleStartCall}
       onGoToContacts={onGoToContacts}
     />

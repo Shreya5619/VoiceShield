@@ -11,6 +11,7 @@ export interface CallerInfo {
 }
 
 interface CallerPickerProps {
+  ownerPhone: string
   onStartCall: (caller: CallerInfo) => void
   onGoToContacts: () => void
 }
@@ -23,8 +24,8 @@ function randomPhone(): string {
   return `(${area}) ${mid}-${last}`
 }
 
-export const CallerPicker: React.FC<CallerPickerProps> = ({ onStartCall, onGoToContacts }) => {
-  const { contacts } = useFamilyContacts()
+export const CallerPicker: React.FC<CallerPickerProps> = ({ ownerPhone, onStartCall, onGoToContacts }) => {
+  const { contacts } = useFamilyContacts(ownerPhone)
 
   // selectedId: a contact id string, or 'unknown', or null
   const [selectedId, setSelectedId] = useState<string | null>(null)

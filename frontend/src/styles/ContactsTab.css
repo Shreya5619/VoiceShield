@@ -319,143 +319,124 @@
   background: rgba(255, 68, 68, 0.08);
 }
 
-/* ── Voice Sample Recorder (inside contact form) ─────────── */
-.voice-recorder {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.voice-recorder-label {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.55);
-}
-
-.voice-recorder-hint {
-  color: rgba(255, 255, 255, 0.25);
-  font-weight: 400;
-}
-
-.voice-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.45rem 0.9rem;
-  border-radius: 8px;
-  border: 1px solid transparent;
-  font-size: 0.83rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-  font-family: inherit;
-}
-
-.voice-btn.record {
-  background: rgba(74, 222, 128, 0.12);
-  border-color: #4ade80;
-  color: #4ade80;
-}
-
-.voice-btn.record:hover {
-  background: rgba(74, 222, 128, 0.22);
-}
-
-.voice-btn.stop {
-  background: rgba(255, 68, 68, 0.12);
-  border-color: #ff4444;
-  color: #ff4444;
-  padding: 0.35rem 0.7rem;
-}
-
-.voice-btn.stop:hover {
-  background: rgba(255, 68, 68, 0.22);
-}
-
-.voice-btn.clear {
-  background: transparent;
-  border-color: #333;
-  color: rgba(255, 255, 255, 0.35);
-  padding: 0.3rem 0.6rem;
-  font-size: 0.75rem;
-}
-
-.voice-btn.clear:hover {
-  border-color: #555;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.voice-recording-row {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-}
-
-.voice-recording-pulse {
-  animation: pulse-red 0.8s ease-in-out infinite;
-}
-
-@keyframes pulse-red {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.3; }
-}
-
-.voice-recording-countdown {
-  font-size: 0.83rem;
-  color: #ff6b6b;
-  font-variant-numeric: tabular-nums;
-  min-width: 90px;
-}
-
-.voice-uploading {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.83rem;
-  color: rgba(255, 255, 255, 0.45);
-}
-
-.voice-spinner {
-  animation: spin 1.2s linear infinite;
-  display: inline-block;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
-}
-
-.voice-done-row {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-}
-
-.voice-done-text {
-  font-size: 0.83rem;
-  color: #4ade80;
-  flex: 1;
-}
-
-.voice-done-icon {
-  font-size: 1rem;
-}
-
-.voice-error-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-size: 0.83rem;
-  color: #ff6b6b;
-}
-
 /* Voice badge on contact card */
 .contact-voice-badge {
   font-size: 0.72rem;
   color: rgba(74, 222, 128, 0.6);
   margin-top: 0.2rem;
   cursor: default;
+}
+
+/* ── Voice Compare Tool ──────────────────────────────────── */
+.vct-card {
+  margin-top: 2rem;
+  background: #111;
+  border: 1px dashed #2a2a2a;
+  border-radius: 16px;
+  padding: 1.25rem;
+}
+
+.vct-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.35);
+  margin: 0 0 1rem 0;
+  letter-spacing: 0.3px;
+}
+
+.vct-slots {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 480px) {
+  .vct-slots { grid-template-columns: 1fr; }
+}
+
+.vct-slot {
+  background: #0f0f0f;
+  border: 1px solid #1e1e1e;
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.vct-slot-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin: 0;
+}
+
+.vct-slot-btn {
+  align-self: flex-start;
+}
+
+.vct-actions {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.75rem;
+}
+
+.vct-btn-compare {
+  padding: 0.55rem 1.5rem;
+  background: rgba(74, 222, 128, 0.1);
+  border: 1px solid #4ade80;
+  border-radius: 8px;
+  color: #4ade80;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-family: inherit;
+}
+
+.vct-btn-compare:hover:not(:disabled) {
+  background: rgba(74, 222, 128, 0.2);
+}
+
+.vct-btn-compare:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.vct-error {
+  font-size: 0.82rem;
+  color: #ff6b6b;
+  text-align: center;
+  margin: 0;
+}
+
+.vct-result {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.vct-match-pct {
+  font-size: 2.5rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.vct-match-label {
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.vct-similarity {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.2);
+  width: 100%;
+  text-align: center;
 }

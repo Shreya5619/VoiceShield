@@ -5,13 +5,19 @@
  * "Record" and has 5 seconds to say "hello world". When the timer
  * finishes (or they press Stop early) the recording is POSTed to
  * /api/speaker-embedding. On success the component calls onEmbeddingReady
- * with the base64 WAV and the embedding vector.
+ * with the embedding vector. The WAV is sent only to the backend and is not stored.
+ *
+ * Recording uses the Web Audio API (AudioContext + ScriptProcessorNode) to
+ * capture raw Float32 PCM samples and encode them as a proper RIFF WAV blob.
+ * This replaces the former MediaRecorder approach which mislabeled WebM/Opus
+ * chunks as 'audio/wav', causing torchaudio on the backend to reject them.
  *
  * All state is local; the parent form just receives the result.
  */
 
 import React, { useRef, useState, useCallback, useEffect } from 'react'
 import { SpeakerEmbedding } from '../hooks/useFamilyContacts'
+import '../styles/VoiceSampleRecorder.css'
 
 const RECORD_DURATION_MS = 5000
 // Use the same base URL pattern as other panels in this project
@@ -21,30 +27,34 @@ export type VoiceSampleState =
   | { status: 'idle' }
   | { status: 'recording'; secondsLeft: number }
   | { status: 'uploading' }
-  | { status: 'done'; base64: string; embedding: SpeakerEmbedding }
+  | { status: 'done'; embedding: SpeakerEmbedding }
   | { status: 'error'; message: string }
 
 interface VoiceSampleRecorderProps {
   /** Called whenever a successful embedding is obtained (or cleared) */
-  onEmbeddingReady: (base64: string | null, embedding: SpeakerEmbedding | null) => void
+  onEmbeddingReady: (embedding: SpeakerEmbedding | null) => void
   /** Optionally pre-populate from an existing contact */
-  initialBase64?: string
   initialEmbedding?: SpeakerEmbedding
 }
 
 export const VoiceSampleRecorder: React.FC<VoiceSampleRecorderProps> = ({
   onEmbeddingReady,
-  initialBase64,
   initialEmbedding,
 }) => {
   const [recState, setRecState] = useState<VoiceSampleState>(
-    initialBase64 && initialEmbedding
-      ? { status: 'done', base64: initialBase64, embedding: initialEmbedding }
+    initialEmbedding
+      ? { status: 'done', embedding: initialEmbedding }
       : { status: 'idle' },
   )
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const chunksRef = useRef<Blob[]>([])
+  // Web Audio API refs
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const processorRef = useRef<ScriptProcessorNode | null>(null)
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null)
+  const samplesRef = useRef<Float32Array[]>([])
+  const sampleRateRef = useRef<number>(44100)
+  const streamRef = useRef<MediaStream | null>(null)
+
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const stopTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -53,7 +63,10 @@ export const VoiceSampleRecorder: React.FC<VoiceSampleRecorderProps> = ({
     return () => {
       timerRef.current && clearInterval(timerRef.current)
       stopTimeoutRef.current && clearTimeout(stopTimeoutRef.current)
-      mediaRecorderRef.current?.stream?.getTracks().forEach((t) => t.stop())
+      processorRef.current?.disconnect()
+      sourceRef.current?.disconnect()
+      audioCtxRef.current?.close()
+      streamRef.current?.getTracks().forEach((t) => t.stop())
     }
   }, [])
 
@@ -62,9 +75,6 @@ export const VoiceSampleRecorder: React.FC<VoiceSampleRecorderProps> = ({
       setRecState({ status: 'uploading' })
 
       try {
-        // Convert blob to base64 for localStorage storage
-        const base64 = await blobToBase64(wavBlob)
-
         // Upload WAV to backend
         const formData = new FormData()
         formData.append('audio', wavBlob, 'voice_sample.wav')
@@ -86,12 +96,12 @@ export const VoiceSampleRecorder: React.FC<VoiceSampleRecorderProps> = ({
           generatedAt: new Date().toISOString(),
         }
 
-        setRecState({ status: 'done', base64, embedding })
-        onEmbeddingReady(base64, embedding)
+        setRecState({ status: 'done', embedding })
+        onEmbeddingReady(embedding)
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Embedding failed'
         setRecState({ status: 'error', message })
-        onEmbeddingReady(null, null)
+        onEmbeddingReady(null)
       }
     },
     [onEmbeddingReady],
@@ -101,31 +111,67 @@ export const VoiceSampleRecorder: React.FC<VoiceSampleRecorderProps> = ({
     timerRef.current && clearInterval(timerRef.current)
     stopTimeoutRef.current && clearTimeout(stopTimeoutRef.current)
 
-    const mr = mediaRecorderRef.current
-    if (mr && mr.state !== 'inactive') {
-      mr.stop() // triggers ondataavailable + onstop
+    // Disconnect Web Audio nodes
+    const processor = processorRef.current
+    const source = sourceRef.current
+    const audioCtx = audioCtxRef.current
+
+    processor?.disconnect()
+    source?.disconnect()
+
+    // Capture sample rate before closing context
+    const sampleRate = sampleRateRef.current
+    audioCtx?.close()
+
+    // Stop the microphone stream
+    streamRef.current?.getTracks().forEach((t) => t.stop())
+    streamRef.current = null
+
+    // Merge all captured Float32Array chunks into one buffer
+    const allChunks = samplesRef.current
+    const totalLength = allChunks.reduce((acc, s) => acc + s.length, 0)
+    const merged = new Float32Array(totalLength)
+    let offset = 0
+    for (const chunk of allChunks) {
+      merged.set(chunk, offset)
+      offset += chunk.length
     }
-  }, [])
+
+    // Reset refs
+    processorRef.current = null
+    sourceRef.current = null
+    audioCtxRef.current = null
+    samplesRef.current = []
+
+    // Encode to a real RIFF WAV blob and upload
+    const wavBlob = encodeWav(merged, sampleRate)
+    uploadAndEmbed(wavBlob)
+  }, [uploadAndEmbed])
 
   const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      chunksRef.current = []
+      streamRef.current = stream
+      samplesRef.current = []
 
-      const mr = new MediaRecorder(stream)
-      mediaRecorderRef.current = mr
+      const audioCtx = new AudioContext()
+      audioCtxRef.current = audioCtx
+      sampleRateRef.current = audioCtx.sampleRate
 
-      mr.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data)
+      const source = audioCtx.createMediaStreamSource(stream)
+      sourceRef.current = source
+
+      // ScriptProcessorNode: deprecated but universally supported
+      const processor = audioCtx.createScriptProcessor(4096, 1, 1)
+      processorRef.current = processor
+
+      processor.onaudioprocess = (e) => {
+        // Copy — the underlying buffer is reused each callback
+        samplesRef.current.push(new Float32Array(e.inputBuffer.getChannelData(0)))
       }
 
-      mr.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop())
-        const wavBlob = new Blob(chunksRef.current, { type: 'audio/wav' })
-        uploadAndEmbed(wavBlob)
-      }
-
-      mr.start()
+      source.connect(processor)
+      processor.connect(audioCtx.destination)
 
       // Countdown timer
       let secondsLeft = Math.ceil(RECORD_DURATION_MS / 1000)
@@ -144,11 +190,11 @@ export const VoiceSampleRecorder: React.FC<VoiceSampleRecorderProps> = ({
     } catch {
       setRecState({ status: 'error', message: 'Microphone access denied' })
     }
-  }, [stopRecording, uploadAndEmbed])
+  }, [stopRecording])
 
   const handleClear = useCallback(() => {
     setRecState({ status: 'idle' })
-    onEmbeddingReady(null, null)
+    onEmbeddingReady(null)
   }, [onEmbeddingReady])
 
   return (
@@ -210,13 +256,50 @@ export const VoiceSampleRecorder: React.FC<VoiceSampleRecorderProps> = ({
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve((reader.result as string).split(',')[1])
-    reader.onerror = reject
-    reader.readAsDataURL(blob)
-  })
+/**
+ * Encode a Float32 mono PCM array into a proper RIFF WAV Blob.
+ * The backend resamples to 16 kHz, so any sample rate is fine.
+ */
+function encodeWav(samples: Float32Array, sampleRate: number): Blob {
+  const numChannels = 1
+  const bitsPerSample = 16
+  const byteRate = sampleRate * numChannels * (bitsPerSample / 8)
+  const blockAlign = numChannels * (bitsPerSample / 8)
+  const dataSize = samples.length * 2 // 16-bit = 2 bytes per sample
+
+  const buffer = new ArrayBuffer(44 + dataSize)
+  const view = new DataView(buffer)
+
+  // RIFF header
+  writeString(view, 0, 'RIFF')
+  view.setUint32(4, 36 + dataSize, true)
+  writeString(view, 8, 'WAVE')
+  writeString(view, 12, 'fmt ')
+  view.setUint32(16, 16, true)          // chunk size
+  view.setUint16(20, 1, true)           // PCM = 1
+  view.setUint16(22, numChannels, true)
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, byteRate, true)
+  view.setUint16(32, blockAlign, true)
+  view.setUint16(34, bitsPerSample, true)
+  writeString(view, 36, 'data')
+  view.setUint32(40, dataSize, true)
+
+  // PCM samples — clamp Float32 → Int16
+  let offset = 44
+  for (let i = 0; i < samples.length; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]))
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true)
+    offset += 2
+  }
+
+  return new Blob([buffer], { type: 'audio/wav' })
+}
+
+function writeString(view: DataView, offset: number, str: string) {
+  for (let i = 0; i < str.length; i++) {
+    view.setUint8(offset + i, str.charCodeAt(i))
+  }
 }
 
 export default VoiceSampleRecorder

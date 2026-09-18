@@ -6,6 +6,8 @@ interface FreezeOverlayProps {
   result: ScamAnalysisResult | null
   isLoading: boolean
   onDismiss: () => void
+  onResumeCall: () => void
+  onMarkAsSpam: () => void
 }
 
 function getRiskColor(level?: string): string {
@@ -71,16 +73,47 @@ function useSpeech() {
 }
 
 /* ── FreezeOverlay ───────────────────────────────────────── */
-export const FreezeOverlay: React.FC<FreezeOverlayProps> = ({ result, isLoading, onDismiss }) => {
+export const FreezeOverlay: React.FC<FreezeOverlayProps> = ({
+  result,
+  isLoading,
+  onDismiss,
+  onResumeCall,
+  onMarkAsSpam,
+}) => {
   const { speak, cancel, speakingIndex } = useSpeech()
+  const announcementSpokenRef = useRef(false)
 
   const hasContent      = !!(result?.summary || (result?.verification_questions?.length ?? 0) > 0)
   const showErrorBanner = !!(result?.analysis_error && !hasContent)
+
+  useEffect(() => {
+    if (!hasContent || announcementSpokenRef.current) return
+
+    announcementSpokenRef.current = true
+    const utterance = new SpeechSynthesisUtterance(
+      'Your call is on hold due to suspicious activity. Answer the questions to proceed.',
+    )
+    utterance.rate = 0.92
+    utterance.pitch = 1.0
+    utterance.volume = 1.0
+    window.speechSynthesis.cancel()
+    window.speechSynthesis.speak(utterance)
+  }, [hasContent])
 
   const handleDismiss = useCallback(() => {
     cancel()
     onDismiss()
   }, [cancel, onDismiss])
+
+  const handleResumeCall = useCallback(() => {
+    cancel()
+    onResumeCall()
+  }, [cancel, onResumeCall])
+
+  const handleMarkAsSpam = useCallback(() => {
+    cancel()
+    onMarkAsSpam()
+  }, [cancel, onMarkAsSpam])
 
   return (
     <div className="freeze-overlay" role="dialog" aria-modal="true" aria-label="AI Scam Alert">
@@ -203,6 +236,17 @@ export const FreezeOverlay: React.FC<FreezeOverlayProps> = ({ result, isLoading,
                 lineHeight: 1.5,
               }}>
                 ⚠️ {result.analysis_error}
+              </div>
+            )}
+
+            {hasContent && (
+              <div className="freeze-actions">
+                <button className="freeze-resume-btn" onClick={handleResumeCall}>
+                  Continue call
+                </button>
+                <button className="freeze-spam-btn" onClick={handleMarkAsSpam}>
+                  Mark as spam &amp; end call
+                </button>
               </div>
             )}
           </>

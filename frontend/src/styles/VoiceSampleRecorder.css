@@ -1,0 +1,136 @@
+/* ============================================================
+   VoiceSampleRecorder — voice sample recording widget
+   ============================================================ */
+
+/* ── Voice Sample Recorder ───────────────────────────────── */
+.voice-recorder {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.voice-recorder-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.voice-recorder-hint {
+  color: rgba(255, 255, 255, 0.25);
+  font-weight: 400;
+}
+
+.voice-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 0.83rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.voice-btn.record {
+  background: rgba(74, 222, 128, 0.12);
+  border-color: #4ade80;
+  color: #4ade80;
+}
+
+.voice-btn.record:hover {
+  background: rgba(74, 222, 128, 0.22);
+}
+
+.voice-btn.stop {
+  background: rgba(255, 68, 68, 0.12);
+  border-color: #ff4444;
+  color: #ff4444;
+  padding: 0.35rem 0.7rem;
+}
+
+.voice-btn.stop:hover {
+  background: rgba(255, 68, 68, 0.22);
+}
+
+.voice-btn.clear {
+  background: transparent;
+  border-color: #333;
+  color: rgba(255, 255, 255, 0.35);
+  padding: 0.3rem 0.6rem;
+  font-size: 0.75rem;
+}
+
+.voice-btn.clear:hover {
+  border-color: #555;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.voice-recording-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.voice-recording-pulse {
+  animation: pulse-red 0.8s ease-in-out infinite;
+}
+
+@keyframes pulse-red {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+.voice-recording-countdown {
+  font-size: 0.83rem;
+  color: #ff6b6b;
+  font-variant-numeric: tabular-nums;
+  min-width: 90px;
+}
+
+.voice-uploading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.83rem;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.voice-spinner {
+  animation: spin 1.2s linear infinite;
+  display: inline-block;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.voice-done-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.voice-done-text {
+  font-size: 0.83rem;
+  color: #4ade80;
+  flex: 1;
+}
+
+.voice-done-icon {
+  font-size: 1rem;
+}
+
+.voice-error-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.83rem;
+  color: #ff6b6b;
+}

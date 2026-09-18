@@ -1,8 +1,7 @@
 /**
- * useFamilyContacts — localStorage CRUD for family contact profiles
- * Storage key: voiceshield_contacts
+ * useFamilyContacts — DynamoDB-backed family contact profiles with a local cache.
  */
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 
 export interface SpeakerEmbedding {
   /** Raw 192-dimensional ECAPA-TDNN vector */
@@ -19,63 +18,133 @@ export interface FamilyContact {
   relation: string
   phone: string
   securityQuestion: string
-  /** Base64-encoded WAV audio of the voice sample (optional) */
-  voiceSampleBase64?: string
   /** Speaker embedding returned by the backend SpeechBrain model (optional) */
   speakerEmbedding?: SpeakerEmbedding
 }
 
-const STORAGE_KEY = 'voiceshield_contacts'
+const BACKEND_URL = 'http://localhost:5000'
 
-function loadContacts(): FamilyContact[] {
+function storageKey(ownerPhone: string): string {
+  return `voiceshield_contacts_${ownerPhone}`
+}
+
+function loadContacts(ownerPhone: string): FamilyContact[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? (JSON.parse(raw) as FamilyContact[]) : []
+    const raw = localStorage.getItem(storageKey(ownerPhone))
+    if (!raw) return []
+    const contacts = JSON.parse(raw) as FamilyContact[]
+    return contacts.map(({ ...contact }) => {
+      delete (contact as FamilyContact & { voiceSampleBase64?: string }).voiceSampleBase64
+      return contact
+    })
   } catch {
     return []
   }
 }
 
-function saveContacts(contacts: FamilyContact[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(contacts))
+function saveContacts(ownerPhone: string, contacts: FamilyContact[]): void {
+  localStorage.setItem(storageKey(ownerPhone), JSON.stringify(contacts))
 }
 
-export function useFamilyContacts() {
-  const [contacts, setContacts] = useState<FamilyContact[]>(loadContacts)
+function toApiContact(contact: Omit<FamilyContact, 'id'>, ownerPhone: string) {
+  return {
+    owner_phone: ownerPhone,
+    name: contact.name,
+    relation: contact.relation,
+    phone: contact.phone,
+    security_question: contact.securityQuestion,
+    speaker_embedding: contact.speakerEmbedding,
+  }
+}
+
+function fromApiContact(item: any): FamilyContact {
+  return {
+    id: item.id,
+    name: item.name,
+    relation: item.relation ?? '',
+    phone: item.phone,
+    securityQuestion: item.security_question ?? '',
+    speakerEmbedding: item.speaker_embedding,
+  }
+}
+
+export function useFamilyContacts(ownerPhone: string) {
+  const [contacts, setContacts] = useState<FamilyContact[]>(() => loadContacts(ownerPhone))
+
+  const refresh = useCallback(async () => {
+    const response = await fetch(
+      `${BACKEND_URL}/api/family-members?owner_phone=${encodeURIComponent(ownerPhone)}`,
+    )
+    if (!response.ok) throw new Error(`Could not load family contacts (HTTP ${response.status})`)
+    const data = (await response.json()) as any[]
+    const loaded = data.map(fromApiContact)
+    saveContacts(ownerPhone, loaded)
+    setContacts(loaded)
+  }, [ownerPhone])
+
+  useEffect(() => {
+    refresh().catch(() => {
+      // Keep the local cache available when the API is temporarily offline.
+    })
+  }, [refresh])
 
   const addContact = useCallback(
-    (data: Omit<FamilyContact, 'id'>): FamilyContact => {
-      const newContact: FamilyContact = {
-        ...data,
-        id: `contact-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      }
-      const updated = [...contacts, newContact]
-      saveContacts(updated)
-      setContacts(updated)
+    async (data: Omit<FamilyContact, 'id'>): Promise<FamilyContact> => {
+      const response = await fetch(`${BACKEND_URL}/api/family-members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(toApiContact(data, ownerPhone)),
+      })
+      if (!response.ok) throw new Error('Could not save family contact')
+      const newContact = fromApiContact(await response.json())
+      setContacts((current) => {
+        const updated = [...current, newContact]
+        saveContacts(ownerPhone, updated)
+        return updated
+      })
       return newContact
     },
-    [contacts],
+    [ownerPhone],
   )
 
   const updateContact = useCallback(
-    (id: string, data: Partial<Omit<FamilyContact, 'id'>>) => {
-      const updated = contacts.map((c) => (c.id === id ? { ...c, ...data } : c))
-      saveContacts(updated)
-      setContacts(updated)
+    async (id: string, data: Partial<Omit<FamilyContact, 'id'>>) => {
+      const current = contacts.find((contact) => contact.id === id)
+      if (!current) throw new Error('Family contact not found')
+      const merged = { ...current, ...data }
+      const response = await fetch(`${BACKEND_URL}/api/family-members/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(toApiContact(merged, ownerPhone)),
+      })
+      if (!response.ok) throw new Error('Could not update family contact')
+      const updatedContact = fromApiContact(await response.json())
+      setContacts((currentContacts) => {
+        const updated = currentContacts.map((c) => (c.id === id ? updatedContact : c))
+        saveContacts(ownerPhone, updated)
+        return updated
+      })
     },
-    [contacts],
+    [contacts, ownerPhone],
   )
 
   const deleteContact = useCallback(
-    (id: string) => {
-      const updated = contacts.filter((c) => c.id !== id)
-      saveContacts(updated)
-      setContacts(updated)
+    async (id: string) => {
+      const response = await fetch(
+        `${BACKEND_URL}/api/family-members/${id}?owner_phone=${encodeURIComponent(ownerPhone)}`,
+        { method: 'DELETE' },
+      )
+      if (!response.ok) throw new Error('Could not delete family contact')
+      setContacts((current) => {
+        const updated = current.filter((c) => c.id !== id)
+        saveContacts(ownerPhone, updated)
+        return updated
+      })
     },
-    [contacts],
+    [ownerPhone],
   )
 
-  return { contacts, addContact, updateContact, deleteContact }
+  return { contacts, addContact, updateContact, deleteContact, refresh }
 }
 
 export default useFamilyContacts

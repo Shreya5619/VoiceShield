@@ -1,6 +1,7 @@
-import React, { useState, useCallback } from 'react'
+﻿import React, { useState, useCallback } from 'react'
 import useFamilyContacts, { FamilyContact, SpeakerEmbedding } from '../hooks/useFamilyContacts'
 import { VoiceSampleRecorder } from './VoiceSampleRecorder'
+import { VoiceCompareTool } from './VoiceCompareTool'
 import '../styles/ContactsTab.css'
 
 /* ── Blank form shape ────────────────────────────────────── */
@@ -16,16 +17,14 @@ interface FormErrors {
 /* ── Small inline form ───────────────────────────────────── */
 interface ContactFormProps {
   initial?: FormData
-  initialBase64?: string
   initialEmbedding?: SpeakerEmbedding
   title: string
-  onSave: (data: FormData, voiceSampleBase64: string | null, speakerEmbedding: SpeakerEmbedding | null) => void
+  onSave: (data: FormData, speakerEmbedding: SpeakerEmbedding | null) => void
   onCancel: () => void
 }
 
 const ContactForm: React.FC<ContactFormProps> = ({
   initial = BLANK_FORM,
-  initialBase64,
   initialEmbedding,
   title,
   onSave,
@@ -33,7 +32,6 @@ const ContactForm: React.FC<ContactFormProps> = ({
 }) => {
   const [form, setForm] = useState<FormData>({ ...initial })
   const [errors, setErrors] = useState<FormErrors>({})
-  const [voiceBase64, setVoiceBase64] = useState<string | null>(initialBase64 ?? null)
   const [voiceEmbedding, setVoiceEmbedding] = useState<SpeakerEmbedding | null>(initialEmbedding ?? null)
 
   const set = (field: keyof FormData) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -56,12 +54,11 @@ const ContactForm: React.FC<ContactFormProps> = ({
   }
 
   const handleSave = () => {
-    if (validate()) onSave(form, voiceBase64, voiceEmbedding)
+    if (validate()) onSave(form, voiceEmbedding)
   }
 
   const handleEmbeddingReady = useCallback(
-    (base64: string | null, embedding: SpeakerEmbedding | null) => {
-      setVoiceBase64(base64)
+    (embedding: SpeakerEmbedding | null) => {
       setVoiceEmbedding(embedding)
     },
     [],
@@ -122,7 +119,6 @@ const ContactForm: React.FC<ContactFormProps> = ({
           <label className="form-label">Voice Sample</label>
           <VoiceSampleRecorder
             onEmbeddingReady={handleEmbeddingReady}
-            initialBase64={initialBase64}
             initialEmbedding={initialEmbedding}
           />
         </div>
@@ -146,7 +142,7 @@ interface ContactCardProps {
   onEdit: () => void
   onDelete: () => void
   isEditing: boolean
-  onSaveEdit: (data: FormData, voiceSampleBase64: string | null, speakerEmbedding: SpeakerEmbedding | null) => void
+  onSaveEdit: (data: FormData, speakerEmbedding: SpeakerEmbedding | null) => void
   onCancelEdit: () => void
 }
 
@@ -169,7 +165,6 @@ const ContactCard: React.FC<ContactCardProps> = ({
             phone: contact.phone,
             securityQuestion: contact.securityQuestion,
           }}
-          initialBase64={contact.voiceSampleBase64}
           initialEmbedding={contact.speakerEmbedding}
           onSave={onSaveEdit}
           onCancel={onCancelEdit}
@@ -218,30 +213,32 @@ const ContactCard: React.FC<ContactCardProps> = ({
 }
 
 /* ── Main ContactsTab ────────────────────────────────────── */
-export const ContactsTab: React.FC = () => {
-  const { contacts, addContact, updateContact, deleteContact } = useFamilyContacts()
+interface ContactsTabProps {
+  ownerPhone: string
+}
+
+export const ContactsTab: React.FC<ContactsTabProps> = ({ ownerPhone }) => {
+  const { contacts, addContact, updateContact, deleteContact } = useFamilyContacts(ownerPhone)
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
 
   const handleAdd = useCallback(
-    (data: FormData, voiceSampleBase64: string | null, speakerEmbedding: SpeakerEmbedding | null) => {
+    async (data: FormData, speakerEmbedding: SpeakerEmbedding | null) => {
       addContact({
         ...data,
-        ...(voiceSampleBase64 ? { voiceSampleBase64 } : {}),
         ...(speakerEmbedding ? { speakerEmbedding } : {}),
-      })
+      }).catch(console.error)
       setShowAddForm(false)
     },
     [addContact],
   )
 
   const handleUpdate = useCallback(
-    (id: string, data: FormData, voiceSampleBase64: string | null, speakerEmbedding: SpeakerEmbedding | null) => {
+    (id: string, data: FormData, speakerEmbedding: SpeakerEmbedding | null) => {
       updateContact(id, {
         ...data,
-        voiceSampleBase64: voiceSampleBase64 ?? undefined,
         speakerEmbedding: speakerEmbedding ?? undefined,
-      })
+      }).catch(console.error)
       setEditingId(null)
     },
     [updateContact],
@@ -306,11 +303,13 @@ export const ContactsTab: React.FC = () => {
               setEditingId(contact.id)
             }}
             onDelete={() => handleDelete(contact.id)}
-            onSaveEdit={(data, base64, emb) => handleUpdate(contact.id, data, base64, emb)}
+            onSaveEdit={(data, emb) => handleUpdate(contact.id, data, emb)}
             onCancelEdit={() => setEditingId(null)}
           />
         ))}
       </div>
+      {/* Temporary voice match tester */}
+      <VoiceCompareTool />
     </div>
   )
 }
