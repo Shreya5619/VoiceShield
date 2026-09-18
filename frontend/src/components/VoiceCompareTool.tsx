@@ -9,8 +9,7 @@
 import React, { useState, useCallback } from 'react'
 import { VoiceSampleRecorder } from './VoiceSampleRecorder'
 import { SpeakerEmbedding } from '../hooks/useFamilyContacts'
-
-const BACKEND_URL = 'http://localhost:5000'
+import { apiUrl } from '../config/api'
 
 // We need the raw WAV blob, not just the embedding, for the comparison request.
 // We reuse VoiceSampleRecorder but intercept the blob before it goes to the
@@ -76,7 +75,7 @@ function useVoiceSlot() {
     // Hit the embedding endpoint just to confirm it works and get the dim
     const fd = new FormData()
     fd.append('audio', blob, 'voice_sample.wav')
-    fetch(`${BACKEND_URL}/api/speaker-embedding`, { method: 'POST', body: fd })
+    fetch(apiUrl('/api/speaker-embedding'), { method: 'POST', body: fd })
       .then((r) => r.ok ? r.json() : r.json().then((e: { detail?: string }) => Promise.reject(new Error(e.detail ?? `HTTP ${r.status}`))))
       .then((d: { embedding_dim: number }) => setState({ status: 'ready', blob, dim: d.embedding_dim }))
       .catch((e: unknown) => setState({ status: 'error', message: e instanceof Error ? e.message : 'Failed' }))
@@ -146,7 +145,7 @@ export const VoiceCompareTool: React.FC = () => {
       const fd = new FormData()
       fd.append('audio_a', blobA, 'voice_a.wav')
       fd.append('audio_b', blobB, 'voice_b.wav')
-      const res = await fetch(`${BACKEND_URL}/api/compare-voices`, { method: 'POST', body: fd })
+      const res = await fetch(apiUrl('/api/compare-voices'), { method: 'POST', body: fd })
       if (!res.ok) {
         const e = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }))
         throw new Error(e.detail)

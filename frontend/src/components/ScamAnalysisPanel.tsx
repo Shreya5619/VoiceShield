@@ -1,13 +1,14 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { ScamAnalysisResult } from '../types'
 import '../styles/ScamAnalysisPanel.css'
+import { apiUrl } from '../config/api'
 
 interface ScamAnalysisPanelProps {
   transcript: string
   isVisible?: boolean
 }
 
-const API_URL = 'http://localhost:5000/api/analyze-scam'
+const API_URL = apiUrl('/api/analyze-scam')
 const DEBOUNCE_MS = 800
 const TIMEOUT_MS = 30000
 

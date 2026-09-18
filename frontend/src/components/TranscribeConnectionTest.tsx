@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { apiUrl } from '../config/api'
 
 interface TestStatus {
   state: 'idle' | 'testing' | 'success' | 'error'
@@ -17,7 +18,7 @@ export function TranscribeConnectionTest() {
 
     try {
       // Test backend health endpoint
-      const response = await fetch('http://localhost:5000/health')
+      const response = await fetch(apiUrl('/health'))
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`)

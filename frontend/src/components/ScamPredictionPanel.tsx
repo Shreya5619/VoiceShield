@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import '../styles/ScamPredictionPanel.css'
+import { apiUrl } from '../config/api'
 
 export interface ScamPredictionResult {
   is_scam: boolean
@@ -45,7 +46,7 @@ export const ScamPredictionPanel: React.FC<ScamPredictionPanelProps> = ({
 
     try {
       // Try the Node.js server first (which now proxies to Python backend)
-      const response = await fetch('http://localhost:5000/api/predict-scam', {
+      const response = await fetch(apiUrl('/api/predict-scam'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

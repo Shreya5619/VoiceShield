@@ -10,6 +10,7 @@ import FreezeOverlay from './FreezeOverlay'
 import useTranscription from '../hooks/useTranscription'
 import { ScamAnalysisResult } from '../types'
 import '../styles/ActiveCallScreen.css'
+import { apiUrl } from '../config/api'
 
 interface ActiveCallScreenProps {
   caller: CallerInfo
@@ -100,7 +101,7 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({ caller, onEn
 
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/predict-scam', {
+        const res = await fetch(apiUrl('/api/predict-scam'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ transcript: fullTranscript }),
@@ -126,7 +127,7 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({ caller, onEn
           setBedrockLoading(true)
           setShowFreeze(true)
 
-          fetch('http://localhost:5000/api/analyze-scam', {
+          fetch(apiUrl('/api/analyze-scam'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ transcript: fullTranscript }),

@@ -2,6 +2,7 @@
  * useFamilyContacts — DynamoDB-backed family contact profiles with a local cache.
  */
 import { useState, useCallback, useEffect } from 'react'
+import { apiUrl } from '../config/api'
 
 export interface SpeakerEmbedding {
   /** Raw 192-dimensional ECAPA-TDNN vector */
@@ -21,8 +22,6 @@ export interface FamilyContact {
   /** Speaker embedding returned by the backend SpeechBrain model (optional) */
   speakerEmbedding?: SpeakerEmbedding
 }
-
-const BACKEND_URL = 'http://localhost:5000'
 
 function storageKey(ownerPhone: string): string {
   return `voiceshield_contacts_${ownerPhone}`
@@ -73,9 +72,12 @@ export function useFamilyContacts(ownerPhone: string) {
 
   const refresh = useCallback(async () => {
     const response = await fetch(
-      `${BACKEND_URL}/api/family-members?owner_phone=${encodeURIComponent(ownerPhone)}`,
+      `${apiUrl('/api/family-members')}?owner_phone=${encodeURIComponent(ownerPhone)}`,
     )
-    if (!response.ok) throw new Error(`Could not load family contacts (HTTP ${response.status})`)
+    if (!response.ok) {
+      const detail = await response.text()
+      throw new Error(detail || `Could not load family contacts (HTTP ${response.status})`)
+    }
     const data = (await response.json()) as any[]
     const loaded = data.map(fromApiContact)
     saveContacts(ownerPhone, loaded)
@@ -90,12 +92,15 @@ export function useFamilyContacts(ownerPhone: string) {
 
   const addContact = useCallback(
     async (data: Omit<FamilyContact, 'id'>): Promise<FamilyContact> => {
-      const response = await fetch(`${BACKEND_URL}/api/family-members`, {
+      const response = await fetch(apiUrl('/api/family-members'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(toApiContact(data, ownerPhone)),
       })
-      if (!response.ok) throw new Error('Could not save family contact')
+      if (!response.ok) {
+        const detail = await response.text()
+        throw new Error(detail || `Could not save family contact (HTTP ${response.status})`)
+      }
       const newContact = fromApiContact(await response.json())
       setContacts((current) => {
         const updated = [...current, newContact]
@@ -112,12 +117,15 @@ export function useFamilyContacts(ownerPhone: string) {
       const current = contacts.find((contact) => contact.id === id)
       if (!current) throw new Error('Family contact not found')
       const merged = { ...current, ...data }
-      const response = await fetch(`${BACKEND_URL}/api/family-members/${id}`, {
+      const response = await fetch(apiUrl(`/api/family-members/${id}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(toApiContact(merged, ownerPhone)),
       })
-      if (!response.ok) throw new Error('Could not update family contact')
+      if (!response.ok) {
+        const detail = await response.text()
+        throw new Error(detail || `Could not update family contact (HTTP ${response.status})`)
+      }
       const updatedContact = fromApiContact(await response.json())
       setContacts((currentContacts) => {
         const updated = currentContacts.map((c) => (c.id === id ? updatedContact : c))
@@ -131,10 +139,13 @@ export function useFamilyContacts(ownerPhone: string) {
   const deleteContact = useCallback(
     async (id: string) => {
       const response = await fetch(
-        `${BACKEND_URL}/api/family-members/${id}?owner_phone=${encodeURIComponent(ownerPhone)}`,
+        `${apiUrl(`/api/family-members/${id}`)}?owner_phone=${encodeURIComponent(ownerPhone)}`,
         { method: 'DELETE' },
       )
-      if (!response.ok) throw new Error('Could not delete family contact')
+      if (!response.ok) {
+        const detail = await response.text()
+        throw new Error(detail || `Could not delete family contact (HTTP ${response.status})`)
+      }
       setContacts((current) => {
         const updated = current.filter((c) => c.id !== id)
         saveContacts(ownerPhone, updated)

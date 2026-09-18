@@ -17,11 +17,11 @@
 
 import React, { useRef, useState, useCallback, useEffect } from 'react'
 import { SpeakerEmbedding } from '../hooks/useFamilyContacts'
+import { apiUrl } from '../config/api'
 import '../styles/VoiceSampleRecorder.css'
 
 const RECORD_DURATION_MS = 5000
 // Use the same base URL pattern as other panels in this project
-const BACKEND_URL = 'http://localhost:5000'
 
 export type VoiceSampleState =
   | { status: 'idle' }
@@ -79,7 +79,7 @@ export const VoiceSampleRecorder: React.FC<VoiceSampleRecorderProps> = ({
         const formData = new FormData()
         formData.append('audio', wavBlob, 'voice_sample.wav')
 
-        const res = await fetch(`${BACKEND_URL}/api/speaker-embedding`, {
+        const res = await fetch(apiUrl('/api/speaker-embedding'), {
           method: 'POST',
           body: formData,
         })

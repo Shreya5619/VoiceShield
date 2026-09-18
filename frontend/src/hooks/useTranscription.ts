@@ -11,6 +11,7 @@ import { TranscriptionSegment, ConnectionState } from '../types'
 import AudioProcessor from '../services/AudioProcessor'
 import AudioResampler from '../services/AudioResampler'
 import AudioQuantizer from '../services/AudioQuantizer'
+import { apiUrl } from '../config/api'
 
 export interface UseTranscriptionConfig {
   languageCode?: string
@@ -279,11 +280,11 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
    */
   const sendToBackend = useCallback(async (transcript: string) => {
     try {
-      const apiUrl = 'http://localhost:5000'
-      console.log(`📤 Using apiUrl: ${apiUrl}`)
+      const backendUrl = apiUrl('')
+      console.log(`📤 Using apiUrl: ${backendUrl}`)
       console.log(`📤 Sending to backend: "${transcript}"`)
       
-      const response = await fetch(`${apiUrl}/api/analyze-scam`, {
+      const response = await fetch(apiUrl('/api/analyze-scam'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ transcript }),
