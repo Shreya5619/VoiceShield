@@ -1,0 +1,69 @@
+/**
+ * CallTab — state machine: picker → incoming → active
+ *   'picking'  : CallerPicker shown
+ *   'incoming' : IncomingCallScreen shown (full-screen)
+ *   'active'   : ActiveCallScreen shown (full-screen)
+ */
+import React, { useState, useCallback } from 'react'
+import CallerPicker, { CallerInfo } from './CallerPicker'
+import IncomingCallScreen from './IncomingCallScreen'
+import ActiveCallScreen from './ActiveCallScreen'
+
+type CallPhase = 'picking' | 'incoming' | 'active'
+
+interface CallTabProps {
+  onGoToContacts: () => void
+}
+
+export const CallTab: React.FC<CallTabProps> = ({ onGoToContacts }) => {
+  const [phase, setPhase] = useState<CallPhase>('picking')
+  const [caller, setCaller] = useState<CallerInfo | null>(null)
+
+  const handleStartCall = useCallback((selected: CallerInfo) => {
+    setCaller(selected)
+    setPhase('incoming')
+  }, [])
+
+  const handleAnswer = useCallback(() => {
+    setPhase('active')
+  }, [])
+
+  const handleDecline = useCallback(() => {
+    setCaller(null)
+    setPhase('picking')
+  }, [])
+
+  const handleEndCall = useCallback(() => {
+    setCaller(null)
+    setPhase('picking')
+  }, [])
+
+  if (phase === 'incoming' && caller) {
+    return (
+      <IncomingCallScreen
+        caller={caller}
+        onAnswer={handleAnswer}
+        onDecline={handleDecline}
+      />
+    )
+  }
+
+  if (phase === 'active' && caller) {
+    return (
+      <ActiveCallScreen
+        caller={caller}
+        onEndCall={handleEndCall}
+      />
+    )
+  }
+
+  // default: picking
+  return (
+    <CallerPicker
+      onStartCall={handleStartCall}
+      onGoToContacts={onGoToContacts}
+    />
+  )
+}
+
+export default CallTab

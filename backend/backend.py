@@ -1,17 +1,21 @@
 """
-Python FastAPI backend for Scam Detection
-Frontend sends transcribed text, backend returns scam predictions using ML model
+Python FastAPI backend for Scam Detection + Speaker Embedding
+Frontend sends transcribed text for scam prediction, or a WAV audio file for
+speaker embedding generation via SpeechBrain ECAPA-TDNN.
 """
 
 import sys
 import re
 import os
+import io
+import tempfile
+import base64
 from dotenv import load_dotenv
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
-from typing import Optional
+from typing import Optional, List
 import joblib
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -46,6 +50,27 @@ try:
 except Exception as e:
     print(f"❌ Error loading model: {e}", file=sys.stderr)
     scam_model = None
+
+# ---------------------------------------------------------------------------
+# SpeechBrain ECAPA-TDNN speaker embedding model
+# Downloaded once at startup and cached in backend/model_cache/
+# ---------------------------------------------------------------------------
+_SPEECHBRAIN_MODEL_DIR = os.path.join(os.path.dirname(__file__), "model_cache", "spkrec-ecapa-voxceleb")
+speaker_model = None
+
+print("📦 Loading SpeechBrain ECAPA-TDNN speaker encoder...")
+try:
+    # Import here so the rest of the backend works even if speechbrain isn't installed
+    from speechbrain.pretrained import EncoderClassifier
+    speaker_model = EncoderClassifier.from_hparams(
+        source="speechbrain/spkrec-ecapa-voxceleb",
+        savedir=_SPEECHBRAIN_MODEL_DIR,
+        run_opts={"device": "cpu"},
+    )
+    print("✓ SpeechBrain speaker encoder loaded successfully")
+except Exception as e:
+    print(f"❌ Error loading SpeechBrain model: {e}", file=sys.stderr)
+    speaker_model = None
 
 # Trigger patterns for scam detection
 TRIGGER_PATTERNS = {
@@ -177,12 +202,27 @@ class AnalyzeScamResponse(BaseModel):
     analysis_error: Optional[str] = None
 
 
+import asyncio
+import time
+import os
+import httpx
+from fastapi import FastAPI, HTTPException
+
+# ... your existing imports and setup ...
+
+# Guard state (module-level)
+_agentcore_lock = asyncio.Lock()
+_last_agentcore_request_time = 0.0
+AGENTCORE_COOLDOWN_SEC = 5  # adjust as needed
+
+
 @app.post("/api/analyze-scam", response_model=AnalyzeScamResponse)
 async def analyze_scam(request_data: AnalyzeScamRequest):
     """
     Orchestrates scam prediction + optional AgentCore deep analysis.
     - Always runs the ML model first
     - If is_scam=True, calls the AgentCore service for LLM analysis
+      (but only one request at a time + cooldown to avoid duplicates)
     - Returns merged result; gracefully degrades if AgentCore is unavailable
     """
     transcript = request_data.transcript.strip()
@@ -218,34 +258,64 @@ async def analyze_scam(request_data: AnalyzeScamRequest):
     if not pred_result["is_scam"]:
         return AnalyzeScamResponse(**pred_result)
 
-    # Step 3: Call AgentCore for LLM analysis
-    agentcore_url = os.getenv("AGENTCORE_INVOCATION_URL", "http://localhost:8080/invocations")
+    if pred_result["scam_probability"] < 0.80:
+        return AnalyzeScamResponse(**pred_result)
 
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                agentcore_url,
-                json={
-                    "transcript": transcript,
-                    "prediction": pred_result,
-                },
-                headers={"Content-Type": "application/json"},
-            )
-            response.raise_for_status()
-            analysis = response.json()
+    # Step 3: Call AgentCore for LLM analysis (with guard)
+    global _last_agentcore_request_time
+
+    # Cooldown check: skip AgentCore if we recently sent a request
+    now = time.time()
+    if now - _last_agentcore_request_time < AGENTCORE_COOLDOWN_SEC:
+        return AnalyzeScamResponse(
+            **pred_result,
+            analysis_error="Request skipped: another analysis is in progress or cooldown active",
+        )
+
+    async with _agentcore_lock:
+        # Double-check cooldown after acquiring lock (in case two requests raced)
+        now = time.time()
+        if now - _last_agentcore_request_time < AGENTCORE_COOLDOWN_SEC:
             return AnalyzeScamResponse(
                 **pred_result,
-                summary=analysis.get("summary"),
-                verification_questions=analysis.get("verification_questions"),
-                risk_level=analysis.get("risk_level"),
+                analysis_error="Request skipped: another analysis is in progress or cooldown active",
             )
-    except httpx.TimeoutException:
-        return AnalyzeScamResponse(**pred_result, analysis_error="AgentCore request timed out after 30s")
-    except httpx.ConnectError:
-        return AnalyzeScamResponse(**pred_result, analysis_error="AgentCore service unavailable (connection refused)")
-    except Exception as e:
-        return AnalyzeScamResponse(**pred_result, analysis_error=f"AgentCore error: {str(e)}")
 
+        _last_agentcore_request_time = now
+
+        agentcore_url = os.getenv("AGENTCORE_INVOCATION_URL", "http://localhost:8080/invocations")
+
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    agentcore_url,
+                    json={
+                        "transcript": transcript,
+                        "prediction": pred_result,
+                    },
+                    headers={"Content-Type": "application/json"},
+                )
+                try:
+                    analysis = response.json()
+                except Exception:
+                    analysis = {}
+
+                if response.status_code == 200 and analysis.get("summary"):
+                    return AnalyzeScamResponse(
+                        **pred_result,
+                        summary=analysis.get("summary"),
+                        verification_questions=analysis.get("verification_questions"),
+                        risk_level=analysis.get("risk_level"),
+                    )
+
+                error_detail = analysis.get("detail", f"AgentCore returned HTTP {response.status_code}")
+                return AnalyzeScamResponse(**pred_result, analysis_error=f"AgentCore error: {error_detail}")
+        except httpx.TimeoutException:
+            return AnalyzeScamResponse(**pred_result, analysis_error="AgentCore request timed out after 30s")
+        except httpx.ConnectError:
+            return AnalyzeScamResponse(**pred_result, analysis_error="AgentCore service unavailable (connection refused)")
+        except Exception as e:
+            return AnalyzeScamResponse(**pred_result, analysis_error=f"AgentCore error: {str(e)}")
 
 @app.get("/api/health")
 async def health():
@@ -253,8 +323,79 @@ async def health():
     return {
         "status": "ok",
         "message": "Backend is running",
-        "model_loaded": scam_model is not None
+        "model_loaded": scam_model is not None,
+        "speaker_model_loaded": speaker_model is not None,
     }
+
+
+# ---------------------------------------------------------------------------
+# Speaker embedding endpoint
+# ---------------------------------------------------------------------------
+
+class SpeakerEmbeddingResponse(BaseModel):
+    embedding: List[float]  # 192-dimensional ECAPA-TDNN vector
+    embedding_dim: int
+
+
+@app.post("/api/speaker-embedding", response_model=SpeakerEmbeddingResponse)
+async def generate_speaker_embedding(audio: UploadFile = File(...)):
+    """
+    Accept a WAV audio file (ideally 5 seconds, 16 kHz mono) and return a
+    192-dimensional ECAPA-TDNN speaker embedding vector.
+
+    The frontend uploads the raw WAV bytes as multipart/form-data under the
+    field name 'audio'.
+    """
+    if speaker_model is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Speaker embedding model is not available. Check server logs.",
+        )
+
+    # Read uploaded bytes
+    audio_bytes = await audio.read()
+    if not audio_bytes:
+        raise HTTPException(status_code=400, detail="Empty audio file")
+
+    try:
+        import torch
+        import torchaudio
+
+        # Write to a temp WAV so torchaudio can decode it
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            tmp.write(audio_bytes)
+            tmp_path = tmp.name
+
+        try:
+            waveform, sample_rate = torchaudio.load(tmp_path)
+
+            # Resample to 16 kHz if needed (ECAPA-TDNN expects 16 kHz)
+            if sample_rate != 16000:
+                resampler = torchaudio.transforms.Resample(
+                    orig_freq=sample_rate, new_freq=16000
+                )
+                waveform = resampler(waveform)
+
+            # Convert to mono
+            if waveform.shape[0] > 1:
+                waveform = waveform.mean(dim=0, keepdim=True)
+
+            # SpeechBrain expects shape [batch, time]
+            waveform = waveform.squeeze(0).unsqueeze(0)  # [1, T]
+
+            with torch.no_grad():
+                embedding = speaker_model.encode_batch(waveform)  # [1, 1, 192]
+
+            vec = embedding.squeeze().cpu().numpy().tolist()  # list of 192 floats
+        finally:
+            os.unlink(tmp_path)
+
+        return SpeakerEmbeddingResponse(embedding=vec, embedding_dim=len(vec))
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Embedding generation failed: {str(e)}"
+        )
 
 def run_backend():
     """Run the FastAPI backend server"""

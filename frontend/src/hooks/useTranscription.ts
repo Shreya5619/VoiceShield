@@ -253,11 +253,6 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
                   } else {
                     setCurrentPartial(null)
                     setSegments((prev) => [...prev, segment])
-                    // IMPLEMENT THIS PART: Send final transcript to backend
-                    console.log('🔌 Calling sendToBackend with:', segment.transcript)
-                    sendToBackend(segment.transcript).catch(err => {
-                      console.error('❌ Failed to send to backend:', err)
-                    })
                   }
                 }
               }

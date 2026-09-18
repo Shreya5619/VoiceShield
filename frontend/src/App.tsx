@@ -1,36 +1,25 @@
 import { useState, useCallback } from 'react'
 import ErrorBoundary from './components/ErrorBoundary'
-import TranscriptionPage from './components/TranscriptionPage'
-import useTranscription from './hooks/useTranscription'
-import './App.css'
+import AppShell, { AppTab } from './components/AppShell'
+import CallTab from './components/CallTab'
+import ContactsTab from './components/ContactsTab'
 
 function App() {
-  const {
-    isRecording,
-    isTranscribing,
-    connectionState,
-    segments,
-    currentPartial,
-    error,
-    startRecording,
-    stopRecording,
-  } = useTranscription({
-    languageCode: 'en-US',
-    region: 'us-east-1',
-  })
+  const [activeTab, setActiveTab] = useState<AppTab>('call')
+
+  const handleGoToContacts = useCallback(() => {
+    setActiveTab('contacts')
+  }, [])
 
   return (
     <ErrorBoundary>
-      <TranscriptionPage
-        connectionState={connectionState}
-        connectionError={error}
-        isTranscribing={isTranscribing}
-        segments={segments}
-        currentPartialResult={currentPartial}
-        onStartRecording={startRecording}
-        onStopRecording={stopRecording}
-        isRecording={isRecording}
-      />
+      <AppShell activeTab={activeTab} onTabChange={setActiveTab}>
+        {activeTab === 'call' ? (
+          <CallTab onGoToContacts={handleGoToContacts} />
+        ) : (
+          <ContactsTab />
+        )}
+      </AppShell>
     </ErrorBoundary>
   )
 }

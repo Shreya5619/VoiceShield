@@ -1,0 +1,461 @@
+/* ============================================================
+   ContactsTab — family contacts management
+   ============================================================ */
+
+.contacts-tab {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem 1rem 3rem;
+  background: #0a0a0a;
+}
+
+/* ── Header row ──────────────────────────────────────────── */
+.contacts-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.contacts-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-add-contact {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  background: #4ade80;
+  color: #0a0a0a;
+  border: none;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.btn-add-contact:hover {
+  background: #22c55e;
+  border-color: transparent;
+}
+
+.btn-add-contact:active {
+  transform: scale(0.97);
+}
+
+/* ── Add / Edit form ─────────────────────────────────────── */
+.contact-form-card {
+  background: #161616;
+  border: 1px solid #2a2a2a;
+  border-radius: 16px;
+  padding: 1.25rem 1.25rem 1rem;
+  margin-bottom: 1.5rem;
+  animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.contact-form-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #4ade80;
+  margin: 0 0 1rem 0;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+@media (max-width: 480px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.form-field.full-width {
+  grid-column: 1 / -1;
+}
+
+.form-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.form-input {
+  padding: 0.6rem 0.75rem;
+  background: #0f0f0f;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 0.9rem;
+  font-family: inherit;
+  transition: border-color 0.2s;
+  outline: none;
+}
+
+.form-input:focus {
+  border-color: #4ade80;
+}
+
+.form-input::placeholder {
+  color: rgba(255, 255, 255, 0.2);
+}
+
+.form-input.error {
+  border-color: #ff4444;
+}
+
+.field-error {
+  font-size: 0.72rem;
+  color: #ff6b6b;
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  justify-content: flex-end;
+}
+
+.btn-save {
+  padding: 0.5rem 1.2rem;
+  background: #4ade80;
+  color: #0a0a0a;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-save:hover {
+  background: #22c55e;
+  border-color: transparent;
+}
+
+.btn-cancel {
+  padding: 0.5rem 1.2rem;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-cancel:hover {
+  border-color: #444;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* ── Contact cards list ──────────────────────────────────── */
+.contacts-empty {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.contacts-empty-icon {
+  font-size: 3rem;
+  margin-bottom: 0.75rem;
+}
+
+.contacts-empty p {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.contacts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.contact-card {
+  background: #161616;
+  border: 1px solid #222222;
+  border-radius: 16px;
+  padding: 1rem 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  transition: border-color 0.2s;
+}
+
+.contact-card:hover {
+  border-color: #2e2e2e;
+}
+
+/* editing state */
+.contact-card.editing {
+  border-color: #4ade80;
+  background: #111;
+}
+
+.contact-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #0a0a0a;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+
+.contact-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.contact-name {
+  font-size: 0.975rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 0.2rem 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.contact-meta {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.contact-relation {
+  font-size: 0.78rem;
+  color: #4ade80;
+  font-weight: 500;
+}
+
+.contact-phone {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.4);
+  font-family: 'Courier New', monospace;
+}
+
+.contact-security {
+  font-size: 0.73rem;
+  color: rgba(255, 255, 255, 0.25);
+  margin-top: 0.2rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Card action buttons ─────────────────────────────────── */
+.contact-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.btn-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid #2a2a2a;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: all 0.15s;
+}
+
+.btn-icon:hover {
+  border-color: #3a3a3a;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.btn-icon.edit:hover {
+  border-color: #4ade80;
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.08);
+}
+
+.btn-icon.delete:hover {
+  border-color: #ff4444;
+  color: #ff4444;
+  background: rgba(255, 68, 68, 0.08);
+}
+
+/* ── Voice Sample Recorder (inside contact form) ─────────── */
+.voice-recorder {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.voice-recorder-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.voice-recorder-hint {
+  color: rgba(255, 255, 255, 0.25);
+  font-weight: 400;
+}
+
+.voice-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 0.83rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.voice-btn.record {
+  background: rgba(74, 222, 128, 0.12);
+  border-color: #4ade80;
+  color: #4ade80;
+}
+
+.voice-btn.record:hover {
+  background: rgba(74, 222, 128, 0.22);
+}
+
+.voice-btn.stop {
+  background: rgba(255, 68, 68, 0.12);
+  border-color: #ff4444;
+  color: #ff4444;
+  padding: 0.35rem 0.7rem;
+}
+
+.voice-btn.stop:hover {
+  background: rgba(255, 68, 68, 0.22);
+}
+
+.voice-btn.clear {
+  background: transparent;
+  border-color: #333;
+  color: rgba(255, 255, 255, 0.35);
+  padding: 0.3rem 0.6rem;
+  font-size: 0.75rem;
+}
+
+.voice-btn.clear:hover {
+  border-color: #555;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.voice-recording-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.voice-recording-pulse {
+  animation: pulse-red 0.8s ease-in-out infinite;
+}
+
+@keyframes pulse-red {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+.voice-recording-countdown {
+  font-size: 0.83rem;
+  color: #ff6b6b;
+  font-variant-numeric: tabular-nums;
+  min-width: 90px;
+}
+
+.voice-uploading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.83rem;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.voice-spinner {
+  animation: spin 1.2s linear infinite;
+  display: inline-block;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.voice-done-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.voice-done-text {
+  font-size: 0.83rem;
+  color: #4ade80;
+  flex: 1;
+}
+
+.voice-done-icon {
+  font-size: 1rem;
+}
+
+.voice-error-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.83rem;
+  color: #ff6b6b;
+}
+
+/* Voice badge on contact card */
+.contact-voice-badge {
+  font-size: 0.72rem;
+  color: rgba(74, 222, 128, 0.6);
+  margin-top: 0.2rem;
+  cursor: default;
+}

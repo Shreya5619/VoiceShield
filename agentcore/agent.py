@@ -154,26 +154,57 @@ def extract_text_from_result(result) -> str:
 # ---------------------------------------------------------------------------
 
 def extract_json(raw_text: str) -> dict:
-    """Extract a JSON object from raw_text, stripping markdown fences if present.
+    """Extract the FIRST complete JSON object from raw_text.
+
+    Handles:
+    - Markdown code fences (```json ... ```)
+    - Surrounding text before/after the JSON
+    - Multiple concatenated JSON objects (takes only the first)
 
     Raises json.JSONDecodeError if no valid JSON object is found.
     """
-    # Strip markdown code fences: ```json ... ``` or ``` ... ```
+    # Strip markdown code fences
     stripped = re.sub(r"```(?:json)?\s*", "", raw_text).replace("```", "").strip()
 
-    # First try direct parse
+    # Try direct parse first (handles clean single-object responses)
     try:
         return json.loads(stripped)
     except json.JSONDecodeError:
         pass
 
-    # Fall back: extract the first {...} block (greedy, handles surrounding text)
-    match = re.search(r"\{.*\}", raw_text, re.DOTALL)
-    if match:
-        return json.loads(match.group(0))
+    # Walk the string character-by-character to find the first balanced { ... }
+    # This correctly stops at the closing brace of the FIRST object,
+    # ignoring any subsequent JSON objects concatenated after it.
+    start = stripped.find('{')
+    if start == -1:
+        raise json.JSONDecodeError("No JSON object found", stripped, 0)
 
-    # Last resort: try the stripped version again (will raise if still invalid)
-    return json.loads(stripped)
+    depth = 0
+    in_string = False
+    escape_next = False
+
+    for i, ch in enumerate(stripped[start:], start=start):
+        if escape_next:
+            escape_next = False
+            continue
+        if ch == '\\' and in_string:
+            escape_next = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+            if depth == 0:
+                # Found the end of the first complete object
+                candidate = stripped[start:i + 1]
+                return json.loads(candidate)
+
+    raise json.JSONDecodeError("Unbalanced braces — no complete JSON object found", stripped, start)
 
 
 # ---------------------------------------------------------------------------
@@ -233,7 +264,9 @@ async def invoke_with_retry(request: InvocationRequest) -> AnalysisResponse:
     """Call invoke_agent with exponential back-off on throttling/service errors.
 
     Retries up to MAX_RETRIES times (1 s → 2 s → 4 s delays).
-    Raises HTTPException 503 after all retries are exhausted.
+    Does NOT retry on:
+    - HTTPException (JSON parse errors, validation errors) — propagated immediately
+    - Raises HTTPException 503 after all retries are exhausted.
     """
     delay = INITIAL_BACKOFF
     last_error: Exception = RuntimeError("No attempts made")
@@ -242,14 +275,26 @@ async def invoke_with_retry(request: InvocationRequest) -> AnalysisResponse:
         try:
             return await invoke_agent(request)
         except HTTPException:
-            # Propagate HTTP exceptions (e.g. JSON parse errors) immediately —
-            # these are not transient throttle/service errors.
+            # Propagate immediately — these are deterministic errors (bad JSON,
+            # validation failures) that won't be fixed by retrying.
             raise
         except Exception as exc:
             last_error = exc
             exc_name = type(exc).__name__
+
+            # Only retry on known transient AWS errors
+            if not any(name in exc_name for name in _RETRYABLE_EXCEPTIONS):
+                logger.error(
+                    "Non-retryable error on attempt %d/%d: %s: %s",
+                    attempt + 1, MAX_RETRIES + 1, exc_name, exc
+                )
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Agent call failed: {exc_name}: {str(exc)}",
+                )
+
             logger.error(
-                "Bedrock call failed (attempt %d/%d): %s: %s",
+                "Retryable error (attempt %d/%d): %s: %s",
                 attempt + 1, MAX_RETRIES + 1, exc_name, exc
             )
             if attempt < MAX_RETRIES:
