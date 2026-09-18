@@ -1,7 +1,7 @@
 ﻿import React, { useState, useCallback } from 'react'
 import useFamilyContacts, { FamilyContact, SpeakerEmbedding } from '../hooks/useFamilyContacts'
 import { VoiceSampleRecorder } from './VoiceSampleRecorder'
-import { VoiceCompareTool } from './VoiceCompareTool'
+import { apiUrl } from '../config/api'
 import '../styles/ContactsTab.css'
 
 /* ── Blank form shape ────────────────────────────────────── */
@@ -144,6 +144,7 @@ interface ContactCardProps {
   isEditing: boolean
   onSaveEdit: (data: FormData, speakerEmbedding: SpeakerEmbedding | null) => void
   onCancelEdit: () => void
+  onToggleEmergency: () => void
 }
 
 const ContactCard: React.FC<ContactCardProps> = ({
@@ -153,6 +154,7 @@ const ContactCard: React.FC<ContactCardProps> = ({
   isEditing,
   onSaveEdit,
   onCancelEdit,
+  onToggleEmergency,
 }) => {
   if (isEditing) {
     return (
@@ -196,6 +198,9 @@ const ContactCard: React.FC<ContactCardProps> = ({
       </div>
 
       <div className="contact-actions">
+        <button className="btn-icon" title="Toggle emergency contact" onClick={onToggleEmergency} aria-label={`Toggle emergency contact for ${contact.name}`}>
+          {contact.isEmergencyContact ? 'Emergency' : 'Set emergency'}
+        </button>
         <button className="btn-icon edit" title="Edit" onClick={onEdit} aria-label={`Edit ${contact.name}`}>
           ✏️
         </button>
@@ -221,6 +226,9 @@ export const ContactsTab: React.FC<ContactsTabProps> = ({ ownerPhone }) => {
   const { contacts, addContact, updateContact, deleteContact } = useFamilyContacts(ownerPhone)
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [sharePhone, setSharePhone] = useState('')
+  const [shareEmbedding, setShareEmbedding] = useState<SpeakerEmbedding | null>(null)
+  const [shareMessage, setShareMessage] = useState('')
 
   const handleAdd = useCallback(
     async (data: FormData, speakerEmbedding: SpeakerEmbedding | null) => {
@@ -252,6 +260,22 @@ export const ContactsTab: React.FC<ContactsTabProps> = ({ ownerPhone }) => {
     [deleteContact, editingId],
   )
 
+  const sendVoice = async () => {
+    if (!sharePhone.trim() || !shareEmbedding) {
+      setShareMessage('Enter a phone number and record your voice first.')
+      return
+    }
+    const response = await fetch(apiUrl('/api/voice-shares'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sender_phone: ownerPhone, sender_name: ownerPhone,
+        recipient_phone: sharePhone.trim(), speaker_embedding: shareEmbedding,
+      }),
+    })
+    if (!response.ok) { setShareMessage(await response.text()); return }
+    setSharePhone(''); setShareEmbedding(null); setShareMessage('Voice sent to their inbox.')
+  }
+
   return (
     <div className="contacts-tab">
       {/* Header */}
@@ -280,6 +304,23 @@ export const ContactsTab: React.FC<ContactsTabProps> = ({ ownerPhone }) => {
         />
       )}
 
+      <section className="contact-form-card">
+        <p className="contact-form-title">Send your voice</p>
+        <div className="form-grid">
+          <div className="form-field full-width">
+            <label className="form-label">Family member phone</label>
+            <input className="form-input" type="tel" value={sharePhone} onChange={(e) => setSharePhone(e.target.value)} placeholder="Enter their phone number" />
+          </div>
+          <div className="form-field full-width">
+            <VoiceSampleRecorder onEmbeddingReady={setShareEmbedding} />
+          </div>
+        </div>
+        <div className="form-actions">
+          <button className="btn-save" onClick={sendVoice}>Send voice</button>
+        </div>
+        {shareMessage && <p className="field-error">{shareMessage}</p>}
+      </section>
+
       {/* Empty state */}
       {contacts.length === 0 && !showAddForm && (
         <div className="contacts-empty">
@@ -305,11 +346,10 @@ export const ContactsTab: React.FC<ContactsTabProps> = ({ ownerPhone }) => {
             onDelete={() => handleDelete(contact.id)}
             onSaveEdit={(data, emb) => handleUpdate(contact.id, data, emb)}
             onCancelEdit={() => setEditingId(null)}
+            onToggleEmergency={() => updateContact(contact.id, { isEmergencyContact: !contact.isEmergencyContact }).catch(console.error)}
           />
         ))}
       </div>
-      {/* Temporary voice match tester */}
-      <VoiceCompareTool />
     </div>
   )
 }

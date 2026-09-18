@@ -284,6 +284,26 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
     onEndCall()
   }, [stopRecording, stopDiarization, onEndCall])
 
+  const handleMarkAsSpam = useCallback(async () => {
+    try {
+      await fetch(apiUrl('/api/spam-alerts'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          owner_phone: ownerPhone,
+          caller_phone: caller.phone,
+          caller_name: caller.name,
+          scam_probability: scamProb,
+          risk_level: bedrockResult?.risk_level,
+          summary: bedrockResult?.summary || '',
+          idempotency_key: `${ownerPhone}-${caller.id}-${Date.now()}`,
+        }),
+      })
+    } finally {
+      handleEndCall()
+    }
+  }, [ownerPhone, caller, scamProb, bedrockResult, handleEndCall])
+
   /* ── Clock ────────────────────────────────────────────────────────────── */
   const [clockStr, setClockStr] = useState('')
   useEffect(() => {
@@ -574,7 +594,7 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
             setIsMuted(false)
             setShowFreeze(false)
           }}
-          onMarkAsSpam={handleEndCall}
+          onMarkAsSpam={handleMarkAsSpam}
         />
       )}
     </>

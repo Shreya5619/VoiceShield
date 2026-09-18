@@ -8,6 +8,7 @@ scikit-learn==1.7.1
 pandas==2.2.0
 numpy==1.26.4
 python-dotenv==1.0.1
+pywebpush==2.0.3
 python-multipart==0.0.12
 torch==2.2.2
 torchaudio==2.2.2

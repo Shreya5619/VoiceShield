@@ -3,6 +3,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import AppShell, { AppTab } from './components/AppShell'
 import CallTab from './components/CallTab'
 import ContactsTab from './components/ContactsTab'
+import InboxTab from './components/InboxTab'
 import './App.css'
 
 const PHONE_STORAGE_KEY = 'voiceshield_user_phone'
@@ -59,7 +60,7 @@ function App() {
         {activeTab === 'call' ? (
           <CallTab ownerPhone={phone} onGoToContacts={handleGoToContacts} />
         ) : (
-          <ContactsTab ownerPhone={phone} />
+          activeTab === 'contacts' ? <ContactsTab ownerPhone={phone} /> : <InboxTab ownerPhone={phone} />
         )}
       </AppShell>
     </ErrorBoundary>

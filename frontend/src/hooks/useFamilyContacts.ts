@@ -21,6 +21,7 @@ export interface FamilyContact {
   securityQuestion: string
   /** Speaker embedding returned by the backend SpeechBrain model (optional) */
   speakerEmbedding?: SpeakerEmbedding
+  isEmergencyContact?: boolean
 }
 
 function storageKey(ownerPhone: string): string {
@@ -53,6 +54,7 @@ function toApiContact(contact: Omit<FamilyContact, 'id'>, ownerPhone: string) {
     phone: contact.phone,
     security_question: contact.securityQuestion,
     speaker_embedding: contact.speakerEmbedding,
+    is_emergency_contact: contact.isEmergencyContact ?? false,
   }
 }
 
@@ -64,6 +66,7 @@ function fromApiContact(item: any): FamilyContact {
     phone: item.phone,
     securityQuestion: item.security_question ?? '',
     speakerEmbedding: item.speaker_embedding,
+    isEmergencyContact: Boolean(item.is_emergency_contact),
   }
 }
 

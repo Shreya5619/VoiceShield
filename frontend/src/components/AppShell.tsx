@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import '../styles/AppShell.css'
 
-export type AppTab = 'call' | 'contacts'
+export type AppTab = 'call' | 'contacts' | 'inbox'
 
 interface AppShellProps {
   activeTab: AppTab
@@ -30,6 +30,14 @@ export const AppShell: React.FC<AppShellProps> = ({ activeTab, onTabChange, chil
         >
           <span className="tab-icon">📞</span>
           Call
+        </button>
+        <button
+          role="tab"
+          aria-selected={activeTab === 'inbox'}
+          className={`tab-btn ${activeTab === 'inbox' ? 'active' : ''}`}
+          onClick={() => onTabChange('inbox')}
+        >
+          <span className="tab-icon">Inbox</span>
         </button>
         <button
           role="tab"

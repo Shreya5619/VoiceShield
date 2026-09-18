@@ -12,6 +12,7 @@ import tempfile
 import base64
 import uuid
 import json
+from datetime import datetime, timezone
 from decimal import Decimal
 from dotenv import load_dotenv
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
@@ -211,8 +212,14 @@ class AnalyzeScamResponse(BaseModel):
 # endpoint and is never included in these records.
 # ---------------------------------------------------------------------------
 FAMILY_TABLE_NAME = os.getenv("VOICESHIELD_FAMILY_TABLE", "VoiceShieldFamilyMembers")
+VOICE_SHARES_TABLE_NAME = os.getenv("VOICESHIELD_VOICE_SHARES_TABLE", "VoiceShieldVoiceShares")
+INBOX_TABLE_NAME = os.getenv("VOICESHIELD_INBOX_TABLE", "VoiceShieldInbox")
+PUSH_TABLE_NAME = os.getenv("VOICESHIELD_PUSH_TABLE", "VoiceShieldPushSubscriptions")
 VOICE_MATCH_THRESHOLD = float(os.getenv("VOICE_MATCH_THRESHOLD", "60.0"))
 _dynamodb_table = None
+_voice_shares_table = None
+_inbox_table = None
+_push_table = None
 
 
 class SpeakerEmbeddingRecord(BaseModel):
@@ -228,6 +235,7 @@ class FamilyMemberRequest(BaseModel):
     phone: str
     security_question: str = ""
     speaker_embedding: Optional[SpeakerEmbeddingRecord] = None
+    is_emergency_contact: bool = False
 
 
 class FamilyMemberResponse(FamilyMemberRequest):
@@ -265,6 +273,7 @@ def family_item_to_response(item: dict) -> FamilyMemberResponse:
         phone=item["phone"],
         security_question=item.get("security_question", ""),
         speaker_embedding=speaker_embedding,
+        is_emergency_contact=bool(item.get("is_emergency_contact", False)),
     )
 
 
@@ -276,6 +285,281 @@ def decimalize(value):
     if isinstance(value, list):
         return [decimalize(item) for item in value]
     return value
+
+
+def voice_shares_table():
+    global _voice_shares_table
+    if _voice_shares_table is None:
+        _voice_shares_table = boto3.resource(
+            "dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1")
+        ).Table(VOICE_SHARES_TABLE_NAME)
+    return _voice_shares_table
+
+
+def inbox_table():
+    global _inbox_table
+    if _inbox_table is None:
+        _inbox_table = boto3.resource(
+            "dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1")
+        ).Table(INBOX_TABLE_NAME)
+    return _inbox_table
+
+
+def push_table():
+    global _push_table
+    if _push_table is None:
+        _push_table = boto3.resource(
+            "dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1")
+        ).Table(PUSH_TABLE_NAME)
+    return _push_table
+
+
+class PushSubscriptionRequest(BaseModel):
+    recipient_phone: str
+    subscription: dict
+
+
+@app.post("/api/push-subscriptions")
+async def save_push_subscription(request_data: PushSubscriptionRequest):
+    endpoint = request_data.subscription.get("endpoint")
+    if not endpoint:
+        raise HTTPException(status_code=400, detail="Push subscription endpoint is required")
+    item = {
+        "recipient_phone": request_data.recipient_phone,
+        "id": uuid.uuid5(uuid.NAMESPACE_URL, endpoint).hex,
+        "subscription": request_data.subscription,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        push_table().put_item(Item=item)
+        return {"saved": True}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Push subscription could not be saved: {exc}")
+
+
+def send_push(recipient_phone: str, title: str, message: str):
+    vapid_private_key = os.getenv("VAPID_PRIVATE_KEY")
+    vapid_subject = os.getenv("VAPID_SUBJECT", "mailto:admin@example.com")
+    if not vapid_private_key:
+        return
+    try:
+        from pywebpush import webpush
+        subscriptions = push_table().query(
+            KeyConditionExpression=boto3.dynamodb.conditions.Key("recipient_phone").eq(recipient_phone)
+        ).get("Items", [])
+        for item in subscriptions:
+            try:
+                webpush(
+                    subscription_info=item["subscription"],
+                    data=json.dumps({"title": title, "body": message}),
+                    vapid_private_key=vapid_private_key,
+                    vapid_claims={"sub": vapid_subject},
+                )
+            except Exception:
+                continue
+    except Exception:
+        return
+
+
+class VoiceShareRequest(BaseModel):
+    sender_phone: str
+    sender_name: str = "VoiceShield member"
+    recipient_phone: str
+    speaker_embedding: SpeakerEmbeddingRecord
+
+
+class VoiceShareResponse(BaseModel):
+    id: str
+    sender_phone: str
+    sender_name: str
+    recipient_phone: str
+    speaker_embedding: SpeakerEmbeddingRecord
+    status: str
+    created_at: str
+
+
+class InboxItemResponse(BaseModel):
+    id: str
+    recipient_phone: str
+    item_type: str
+    title: str
+    message: str
+    share_id: Optional[str] = None
+    sender_phone: Optional[str] = None
+    sender_name: Optional[str] = None
+    speaker_embedding: Optional[SpeakerEmbeddingRecord] = None
+    status: str
+    created_at: str
+
+
+def share_response(item: dict) -> VoiceShareResponse:
+    return VoiceShareResponse(
+        id=item["id"], sender_phone=item["sender_phone"],
+        sender_name=item.get("sender_name", "VoiceShield member"),
+        recipient_phone=item["recipient_phone"],
+        speaker_embedding=undecimalize(item["speaker_embedding"]),
+        status=item["status"], created_at=item["created_at"],
+    )
+
+
+def inbox_response(item: dict) -> InboxItemResponse:
+    return InboxItemResponse(
+        id=item["id"], recipient_phone=item["recipient_phone"],
+        item_type=item["item_type"], title=item["title"],
+        message=item["message"], share_id=item.get("share_id"),
+        sender_phone=item.get("sender_phone"), sender_name=item.get("sender_name"),
+        speaker_embedding=undecimalize(item.get("speaker_embedding"))
+        if item.get("speaker_embedding") else None,
+        status=item["status"], created_at=item["created_at"],
+    )
+
+
+@app.post("/api/voice-shares", response_model=VoiceShareResponse)
+async def create_voice_share(request_data: VoiceShareRequest):
+    if request_data.sender_phone == request_data.recipient_phone:
+        raise HTTPException(status_code=400, detail="You cannot send a voice share to yourself")
+    share_id = f"share-{uuid.uuid4().hex}"
+    created_at = datetime.now(timezone.utc).isoformat()
+    item = decimalize({**request_data.model_dump(), "id": share_id, "status": "pending", "created_at": created_at})
+    inbox_item = decimalize({
+        "id": f"inbox-{uuid.uuid4().hex}", "recipient_phone": request_data.recipient_phone,
+        "item_type": "voice_share", "title": "New voice sample",
+        "message": f"{request_data.sender_name} sent you a voice sample to save.",
+        "share_id": share_id, "sender_phone": request_data.sender_phone,
+        "sender_name": request_data.sender_name,
+        "speaker_embedding": request_data.speaker_embedding.model_dump(),
+        "status": "pending", "created_at": created_at,
+    })
+    try:
+        voice_shares_table().put_item(Item=item)
+        inbox_table().put_item(Item=inbox_item)
+        send_push(request_data.recipient_phone, "New voice sample", inbox_item["message"])
+        return share_response(item)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Voice share could not be sent: {exc}")
+
+
+@app.get("/api/inbox", response_model=List[InboxItemResponse])
+async def list_inbox(recipient_phone: str):
+    try:
+        response = inbox_table().query(
+            KeyConditionExpression=boto3.dynamodb.conditions.Key("recipient_phone").eq(recipient_phone)
+        )
+        items = sorted(response.get("Items", []), key=lambda item: item.get("created_at", ""), reverse=True)
+        return [inbox_response(item) for item in items]
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Inbox unavailable: {exc}")
+
+
+class VoiceShareDecision(BaseModel):
+    recipient_phone: str
+    action: str
+    name: Optional[str] = None
+    relation: str = ""
+    phone: Optional[str] = None
+    security_question: str = ""
+
+
+@app.post("/api/voice-shares/{share_id}/decision", response_model=InboxItemResponse)
+async def decide_voice_share(share_id: str, decision: VoiceShareDecision):
+    if decision.action not in {"accept", "reject"}:
+        raise HTTPException(status_code=400, detail="action must be accept or reject")
+    try:
+        share = voice_shares_table().get_item(Key={"id": share_id}).get("Item")
+        if not share or share.get("recipient_phone") != decision.recipient_phone:
+            raise HTTPException(status_code=404, detail="Voice share not found")
+        if share.get("status") != "pending":
+            raise HTTPException(status_code=409, detail="Voice share was already handled")
+        if decision.action == "accept":
+            member_phone = decision.phone or share["sender_phone"]
+            existing = family_table().query(
+                KeyConditionExpression=boto3.dynamodb.conditions.Key("owner_phone").eq(decision.recipient_phone)
+            ).get("Items", [])
+            existing_member = next((item for item in existing if item.get("phone") == member_phone), None)
+            member = {
+                "owner_phone": decision.recipient_phone,
+                "id": existing_member["id"] if existing_member else f"contact-{uuid.uuid4().hex}",
+                "name": decision.name or share.get("sender_name", "Family member"),
+                "relation": decision.relation,
+                "phone": member_phone,
+                "security_question": decision.security_question,
+                "speaker_embedding": share["speaker_embedding"],
+                "is_emergency_contact": existing_member.get("is_emergency_contact", False) if existing_member else False,
+            }
+            family_table().put_item(Item=member)
+        voice_shares_table().update_item(
+            Key={"id": share_id}, UpdateExpression="SET #status = :status",
+            ExpressionAttributeNames={"#status": "status"},
+            ExpressionAttributeValues={":status": decision.action + "ed"},
+        )
+        inbox_item = next((item for item in inbox_table().query(
+            KeyConditionExpression=boto3.dynamodb.conditions.Key("recipient_phone").eq(decision.recipient_phone)
+        ).get("Items", []) if item.get("share_id") == share_id), None)
+        if not inbox_item:
+            raise HTTPException(status_code=404, detail="Inbox item not found")
+        inbox_table().update_item(
+            Key={"recipient_phone": decision.recipient_phone, "id": inbox_item["id"]},
+            UpdateExpression="SET #status = :status", ExpressionAttributeNames={"#status": "status"},
+            ExpressionAttributeValues={":status": decision.action + "ed"},
+        )
+        inbox_item["status"] = decision.action + "ed"
+        return inbox_response(inbox_item)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Voice share decision failed: {exc}")
+
+class SpamAlertRequest(BaseModel):
+    owner_phone: str
+    caller_phone: str = "Unknown caller"
+    caller_name: str = "Unknown caller"
+    scam_probability: float = 0.0
+    risk_level: Optional[str] = None
+    summary: str = ""
+    idempotency_key: str
+
+
+class SpamAlertResponse(BaseModel):
+    alert_id: str
+    recipient_count: int
+    duplicate: bool = False
+
+
+@app.post("/api/spam-alerts", response_model=SpamAlertResponse)
+async def create_spam_alert(request_data: SpamAlertRequest):
+    alert_id = f"alert-{request_data.idempotency_key}"
+    try:
+        existing = inbox_table().get_item(Key={"recipient_phone": request_data.owner_phone, "id": alert_id}).get("Item")
+        if existing:
+            return SpamAlertResponse(alert_id=alert_id, recipient_count=0, duplicate=True)
+
+        contacts = family_table().query(
+            KeyConditionExpression=boto3.dynamodb.conditions.Key("owner_phone").eq(request_data.owner_phone)
+        ).get("Items", [])
+        emergency_contacts = [contact for contact in contacts if contact.get("is_emergency_contact")]
+        created_at = datetime.now(timezone.utc).isoformat()
+        owner_alert = decimalize({
+            "recipient_phone": request_data.owner_phone, "id": alert_id,
+            "item_type": "spam_alert", "title": "Spam call blocked",
+            "message": request_data.summary or f"A suspicious call from {request_data.caller_name} was blocked.",
+            "status": "unread", "created_at": created_at,
+            "caller_phone": request_data.caller_phone,
+            "scam_probability": request_data.scam_probability,
+            "risk_level": request_data.risk_level or "HIGH",
+        })
+        inbox_table().put_item(Item=owner_alert, ConditionExpression="attribute_not_exists(id)")
+        for contact in emergency_contacts:
+            emergency_alert = dict(owner_alert)
+            emergency_alert["recipient_phone"] = contact["phone"]
+            emergency_alert["id"] = f"{alert_id}-{contact['id']}"
+            emergency_alert["title"] = "Emergency scam alert"
+            inbox_table().put_item(Item=emergency_alert)
+            send_push(contact["phone"], emergency_alert["title"], emergency_alert["message"])
+        return SpamAlertResponse(alert_id=alert_id, recipient_count=len(emergency_contacts))
+    except Exception as exc:
+        if "ConditionalCheckFailed" in str(exc):
+            return SpamAlertResponse(alert_id=alert_id, recipient_count=0, duplicate=True)
+        raise HTTPException(status_code=503, detail=f"Spam alert could not be created: {exc}")
 
 
 @app.get("/api/family-members", response_model=List[FamilyMemberResponse])
