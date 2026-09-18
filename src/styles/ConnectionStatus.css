@@ -1,0 +1,186 @@
+.connection-status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid rgba(100, 108, 255, 0.2);
+  transition: all 0.3s ease;
+}
+
+.connection-status.idle {
+  background-color: rgba(100, 108, 255, 0.1);
+  border-color: rgba(100, 108, 255, 0.2);
+}
+
+.connection-status.connecting {
+  background-color: rgba(255, 193, 7, 0.1);
+  border-color: rgba(255, 193, 7, 0.3);
+}
+
+.connection-status.connected {
+  background-color: rgba(76, 175, 80, 0.1);
+  border-color: rgba(76, 175, 80, 0.3);
+}
+
+.connection-status.reconnecting {
+  background-color: rgba(255, 152, 0, 0.1);
+  border-color: rgba(255, 152, 0, 0.3);
+}
+
+.connection-status.disconnected {
+  background-color: rgba(158, 158, 158, 0.1);
+  border-color: rgba(158, 158, 158, 0.3);
+}
+
+.connection-status.error {
+  background-color: rgba(255, 107, 107, 0.15);
+  border-color: rgba(255, 107, 107, 0.3);
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 500;
+}
+
+.status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+}
+
+.status-icon.animate {
+  animation: rotate 2s linear infinite;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.connection-status.connected .status-icon {
+  color: #4caf50;
+}
+
+.connection-status.connecting .status-icon,
+.connection-status.reconnecting .status-icon {
+  color: #ff9800;
+}
+
+.connection-status.error .status-icon {
+  color: #ff6b6b;
+}
+
+.connection-status.disconnected .status-icon {
+  color: #9e9e9e;
+}
+
+.connection-status.idle .status-icon {
+  color: #646cff;
+}
+
+.status-label {
+  font-size: 0.95rem;
+}
+
+.connection-status.connected .status-label {
+  color: #4caf50;
+}
+
+.connection-status.connecting .status-label,
+.connection-status.reconnecting .status-label {
+  color: #ff9800;
+}
+
+.connection-status.error .status-label {
+  color: #ff6b6b;
+}
+
+.connection-status.disconnected .status-label {
+  color: #9e9e9e;
+}
+
+.connection-status.idle .status-label {
+  color: #646cff;
+}
+
+.error-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 107, 107, 0.2);
+}
+
+.error-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.error-icon {
+  font-size: 1.2rem;
+}
+
+.error-code {
+  font-weight: 600;
+  color: #ff6b6b;
+  font-size: 0.9rem;
+}
+
+.error-message {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.error-note {
+  margin: 0.5rem 0 0 0;
+  font-size: 0.8rem;
+  font-style: italic;
+  color: rgba(255, 107, 107, 0.7);
+}
+
+.retry-button {
+  align-self: flex-start;
+  padding: 0.5rem 1rem;
+  background-color: #ff6b6b;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.retry-button:hover {
+  background-color: #ff5252;
+  transform: translateY(-1px);
+}
+
+.retry-button:active {
+  transform: translateY(0);
+}
+
+.reconnect-info {
+  padding: 0.75rem;
+  background-color: rgba(255, 152, 0, 0.1);
+  border: 1px solid rgba(255, 152, 0, 0.2);
+  border-radius: 6px;
+}
+
+.reconnect-info p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #ff9800;
+  text-align: center;
+}
