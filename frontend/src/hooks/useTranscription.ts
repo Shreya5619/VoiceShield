@@ -21,6 +21,12 @@ export interface UseTranscriptionConfig {
     secretAccessKey: string
     sessionToken?: string
   }
+  /**
+   * When true, the hook does NOT start its own mic capture.
+   * Instead, call feedCallerAudio(blob) to push caller-only WAV blobs
+   * produced by useVADDiarization.
+   */
+  externalAudio?: boolean
 }
 
 export interface UseTranscriptionResult {
@@ -34,6 +40,11 @@ export interface UseTranscriptionResult {
   stopRecording: () => void
   reset: () => void
   sendToBackend: (transcript: string) => Promise<any>
+  /**
+   * Feed a caller-only WAV blob (from useVADDiarization) into the
+   * Transcribe stream.  No-op if the stream is not yet started.
+   */
+  feedCallerAudio: (blob: Blob) => void
 }
 
 export function useTranscription(config: UseTranscriptionConfig = {}): UseTranscriptionResult {
@@ -52,20 +63,9 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
   const segmentIdRef = useRef(0)
   const isRecordingRef = useRef(false)
 
-  /**
-   * Create audio chunk generator
-   */
-  const createAudioGenerator = useCallback(function* () {
-    console.log('Audio generator started')
-    while (isRecordingRef.current) {
-      // This will be filled by onAudioFrame callback
-      yield new Promise<Uint8Array>((resolve) => {
-        // Store resolver temporarily
-        ;(window as any).__audioResolver = resolve
-      })
-    }
-    console.log('Audio generator stopped')
-  }, [])
+  // Shared audio queue fed by EITHER the mic processor OR feedCallerAudio
+  const audioChunksRef = useRef<Uint8Array[]>([])
+  const audioResolverRef = useRef<(() => void) | null>(null)
 
   /**
    * Start recording and streaming to Transcribe
@@ -95,29 +95,49 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
         throw new Error('AWS credentials not configured. Add VITE_AWS_ACCESS_KEY_ID to .env.local')
       }
 
-      // Initialize audio processor
-      const processor = new AudioProcessor({
-        targetSampleRate: 16000,
-        chunkDurationMs: 100,
-        echoCancellation: true,
-        noiseSuppression: true,
-      })
-
-      await processor.initialize()
-      audioProcessorRef.current = processor
-
-      // Initialize resampler
-      const inputRate = processor.getAudioContext()?.sampleRate || 44100
-      const resampler = new AudioResampler({
-        inputSampleRate: inputRate,
-        outputSampleRate: 16000,
-      })
-      resamplerRef.current = resampler
-
       isRecordingRef.current = true
       setIsRecording(true)
       sequenceRef.current = 0
       segmentIdRef.current = 0
+      audioChunksRef.current = []
+      audioResolverRef.current = null
+
+      // ── Mic capture (only when NOT in externalAudio mode) ────────────────
+      if (!config.externalAudio) {
+        const processor = new AudioProcessor({
+          targetSampleRate: 16000,
+          chunkDurationMs: 100,
+          echoCancellation: true,
+          noiseSuppression: true,
+        })
+        await processor.initialize()
+        audioProcessorRef.current = processor
+
+        const inputRate = processor.getAudioContext()?.sampleRate || 44100
+        const resampler = new AudioResampler({
+          inputSampleRate: inputRate,
+          outputSampleRate: 16000,
+        })
+        resamplerRef.current = resampler
+
+        processor.onAudioFrame((frame) => {
+          if (!isRecordingRef.current) return
+          try {
+            const resampled = resamplerRef.current!.resample(frame.data)
+            const quantized = AudioQuantizer.quantize(resampled)
+            const audioData = new Uint8Array(quantized.buffer)
+            audioChunksRef.current.push(audioData)
+            if (audioResolverRef.current) {
+              audioResolverRef.current()
+              audioResolverRef.current = null
+            }
+          } catch (err) {
+            console.error('Audio processing error:', err)
+          }
+        })
+
+        processor.start()
+      }
 
       // Create abort controller
       const abortController = new AbortController()
@@ -134,65 +154,25 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
       })
       clientRef.current = client
 
-      
       setConnectionState(ConnectionState.Connected)
       setIsTranscribing(true)
 
-      // Create audio stream
-      const audioChunks: Uint8Array[] = []
-      let audioResolver: (() => void) | null = null
-
-      processor.onAudioFrame((frame) => {
-        if (!isRecordingRef.current) return
-
-        try {
-          // Resample
-          const resampled = resamplerRef.current!.resample(frame.data)
-
-          // Quantize to int16
-          const quantized = AudioQuantizer.quantize(resampled)
-          const audioData = new Uint8Array(quantized.buffer)
-          
-
-          // Push to queue
-          audioChunks.push(audioData)
-          
-
-          // Resolve pending promise if exists
-          if (audioResolver) {
-            
-            audioResolver() // Just resolve - chunks are already in the queue
-            audioResolver = null
-          }
-        } catch (err) {
-          console.error('Audio processing error:', err)
-        }
-      })
-
-      // Audio stream async generator
+      // Audio stream async generator — reads from shared audioChunksRef
       const audioStream = async function* () {
-        
         let frameCount = 0
         while (isRecordingRef.current && !abortController.signal.aborted) {
-          if (audioChunks.length > 0) {
-            const chunk = audioChunks.shift()
+          if (audioChunksRef.current.length > 0) {
+            const chunk = audioChunksRef.current.shift()
             if (chunk) {
               frameCount++
-              
               yield { AudioEvent: { AudioChunk: chunk } }
             }
           } else {
-            // Wait for more audio
-            
             await new Promise<void>((resolve) => {
-              audioResolver = () => {
-                resolve()
-              }
-              // If no audio arrives in 200ms, continue anyway (in case of silence)
+              audioResolverRef.current = resolve
               setTimeout(() => {
-                if (audioResolver) {
-                  
-                  audioResolver = null
+                if (audioResolverRef.current) {
+                  audioResolverRef.current = null
                 }
                 resolve()
               }, 200)
@@ -202,10 +182,6 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
         console.log(`✋ Audio stream ended after ${frameCount} frames`)
       }
 
-      // Start capturing audio
-      processor.start()
-      
-
       // Send to Transcribe
       const command = new StartStreamTranscriptionCommand({
         LanguageCode: languageCode,
@@ -214,25 +190,17 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
         AudioStream: audioStream(),
       })
 
-      
       const response = await client.send(command, { abortSignal: abortController.signal })
 
       // Process results
       if (response.TranscriptResultStream) {
-        console.log('🔊 Result stream received, listening for events...')
-        let eventCount = 0
         for await (const event of response.TranscriptResultStream) {
           if (abortController.signal.aborted) break
-
-          
 
           if (event.TranscriptEvent) {
             const transcript = event.TranscriptEvent.Transcript
             if (transcript?.Results) {
-              
               for (const result of transcript.Results) {
-            
-
                 if (result.Alternatives && result.Alternatives.length > 0) {
                   const alt = result.Alternatives[0]
                   const isPartial = result.IsPartial ?? false
@@ -260,8 +228,6 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
             }
           }
         }
-
-        
       } else {
         console.warn('⚠️ No TranscriptResultStream in response')
       }
@@ -274,6 +240,40 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
       stopRecording()
     }
   }, [config])
+
+  /**
+   * Feed a caller-only WAV blob (produced by useVADDiarization) into the
+   * running Transcribe stream.  Decodes the WAV to 16-bit PCM and queues it
+   * exactly like frames from the mic processor would be.
+   *
+   * No-op if the stream has not been started (isRecordingRef.current === false).
+   */
+  const feedCallerAudio = useCallback((blob: Blob) => {
+    if (!isRecordingRef.current) return
+
+    blob.arrayBuffer().then((buf) => {
+      try {
+        // The WAV from the backend is 16 kHz mono 16-bit PCM.
+        // We need to strip the 44-byte RIFF header and hand the raw PCM bytes
+        // straight to the Transcribe queue.
+        const WAV_HEADER_BYTES = 44
+        const pcmBuf = buf.byteLength > WAV_HEADER_BYTES
+          ? buf.slice(WAV_HEADER_BYTES)
+          : buf
+
+        const audioData = new Uint8Array(pcmBuf)
+        if (audioData.length === 0) return
+
+        audioChunksRef.current.push(audioData)
+        if (audioResolverRef.current) {
+          audioResolverRef.current()
+          audioResolverRef.current = null
+        }
+      } catch (err) {
+        console.error('[Transcription] feedCallerAudio error', err)
+      }
+    }).catch((err) => console.error('[Transcription] blob.arrayBuffer error', err))
+  }, [])
 
   /**
    * Send transcribed text to backend for scam prediction
@@ -360,6 +360,7 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
     stopRecording,
     reset,
     sendToBackend,
+    feedCallerAudio,
   }
 }
 

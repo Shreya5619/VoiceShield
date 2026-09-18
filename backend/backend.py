@@ -11,6 +11,7 @@ import io
 import tempfile
 import base64
 import uuid
+import json
 from decimal import Decimal
 from dotenv import load_dotenv
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
@@ -210,6 +211,7 @@ class AnalyzeScamResponse(BaseModel):
 # endpoint and is never included in these records.
 # ---------------------------------------------------------------------------
 FAMILY_TABLE_NAME = os.getenv("VOICESHIELD_FAMILY_TABLE", "VoiceShieldFamilyMembers")
+VOICE_MATCH_THRESHOLD = float(os.getenv("VOICE_MATCH_THRESHOLD", "60.0"))
 _dynamodb_table = None
 
 
@@ -587,6 +589,418 @@ async def compare_voices(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Comparison failed: {str(e)}")
 
+# ---------------------------------------------------------------------------
+# Verify speaker endpoint — compares live audio against a stored embedding
+# vector (no need to re-upload the original voice sample WAV).
+# ---------------------------------------------------------------------------
+
+class VerifySpeakerResponse(BaseModel):
+    similarity: float       # cosine similarity, range -1 to 1
+    match_percent: float    # (similarity + 1) / 2 * 100, clamped 0–100
+    verified: bool          # match_percent >= 60
+
+
+@app.post("/api/verify-speaker", response_model=VerifySpeakerResponse)
+async def verify_speaker(
+    live_audio: UploadFile = File(...),
+    stored_embedding: str = Form(...),  # JSON: {"vector": [...], "dim": N, ...}
+):
+    """
+    Compare live call audio against a stored ECAPA-TDNN speaker embedding.
+    Accepts the stored embedding as a JSON vector so the original WAV never
+    needs to be retained after initial enrolment.
+    """
+    if speaker_model is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Speaker embedding model is not available.",
+        )
+
+    audio_bytes = await live_audio.read()
+    if not audio_bytes:
+        raise HTTPException(status_code=400, detail="live_audio is empty.")
+
+    # Parse and validate the stored embedding
+    try:
+        emb_data = json.loads(stored_embedding)
+        vector = emb_data.get("vector") or emb_data  # accept bare list too
+        if not isinstance(vector, list):
+            raise ValueError("vector must be a list")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"stored_embedding is malformed: {exc}")
+
+    try:
+        import torch
+        import json as _json  # already imported above
+        import numpy as np
+
+        vec_stored = torch.tensor(vector, dtype=torch.float32)
+
+        # Validate dimension matches model output
+        expected_dim = speaker_model.encode_batch(
+            torch.zeros(1, 16000)
+        ).squeeze().shape[0]
+        if vec_stored.shape[0] != expected_dim:
+            raise HTTPException(
+                status_code=400,
+                detail=f"stored_embedding has {vec_stored.shape[0]} dimensions; "
+                       f"model expects {expected_dim}.",
+            )
+
+        # Compute embedding for the live audio
+        vec_live = _wav_bytes_to_embedding(audio_bytes)
+
+        # Cosine similarity
+        cos_sim = float(
+            torch.nn.functional.cosine_similarity(
+                vec_stored.unsqueeze(0), vec_live.unsqueeze(0)
+            ).item()
+        )
+        match_pct = round(max(0.0, min(100.0, (cos_sim + 1) / 2 * 100)), 2)
+
+        return VerifySpeakerResponse(
+            similarity=round(cos_sim, 6),
+            match_percent=match_pct,
+            verified=match_pct >= VOICE_MATCH_THRESHOLD,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Verification failed: {exc}")
+
+# ---------------------------------------------------------------------------
+# VAD + Diarization + Speaker Identification Pipeline
+#
+# POST /api/analyze-audio-segment
+#
+# Accepts a raw 16 kHz mono 16-bit PCM audio chunk (multipart WAV) plus
+# optional JSON-encoded enrolled speaker embeddings (owner + family contacts).
+# Returns per-segment speaker labels (SELF / FAMILY_<name> / UNKNOWN) and
+# the concatenated audio bytes for UNKNOWN/caller segments only — ready to
+# be piped straight to Amazon Transcribe.
+#
+# Design:
+#   1. Energy-based VAD: frame the waveform into 30 ms windows, threshold RMS.
+#   2. Simple diarization: merge adjacent frames with the same VAD state into
+#      speech segments, then split on >300 ms silences.
+#   3. Speaker ID per segment: extract ECAPA-TDNN embedding, cosine-compare
+#      against each enrolled embedding (owner first, then family contacts).
+#      Highest similarity above a threshold wins; otherwise UNKNOWN.
+#   4. Routing: SELF → discard, FAMILY → privacy-preserve (discard),
+#      UNKNOWN → forward to Transcribe.
+# ---------------------------------------------------------------------------
+
+import struct
+
+class EnrolledSpeaker(BaseModel):
+    label: str                # e.g. "SELF", "FAMILY_Mom", "FAMILY_Alice"
+    embedding: List[float]    # 192-d ECAPA-TDNN vector
+
+
+class AudioSegmentRequest(BaseModel):
+    """Parsed model for the non-audio fields sent alongside the WAV upload."""
+    enrolled_speakers: List[EnrolledSpeaker] = []
+    # similarity threshold [0,1]; default maps to match_percent ≥ 55 %
+    identification_threshold: float = 0.10   # cosine in [-1,1]; 55 % match ≈ 0.10
+
+
+class SegmentResult(BaseModel):
+    speaker_label: str        # SELF | FAMILY_<name> | UNKNOWN
+    start_ms: float
+    end_ms: float
+    duration_ms: float
+    similarity: Optional[float] = None   # best cosine similarity found
+    route: str                # "discard" | "transcribe"
+
+
+class AudioAnalysisResponse(BaseModel):
+    segments: List[SegmentResult]
+    caller_audio_b64: Optional[str] = None  # base64 WAV of caller-only audio
+    caller_duration_ms: float = 0.0
+    has_speech: bool = False
+    speaker_summary: dict = {}             # label → total_ms
+
+
+def _rms(samples: "np.ndarray") -> float:
+    """Root mean square energy of a numpy float32 frame."""
+    import numpy as np
+    return float(np.sqrt(np.mean(samples ** 2)))
+
+
+def _energy_vad(
+    waveform: "np.ndarray",
+    sample_rate: int = 16000,
+    frame_ms: int = 30,
+    energy_threshold: float = 0.005,
+    min_speech_ms: int = 100,
+    min_silence_ms: int = 300,
+) -> List[dict]:
+    """
+    Simple energy-based VAD returning a list of speech regions:
+      [{"start_ms": float, "end_ms": float}, ...]
+    """
+    import numpy as np
+
+    frame_size = int(sample_rate * frame_ms / 1000)
+    total_frames = len(waveform) // frame_size
+
+    is_speech = []
+    for i in range(total_frames):
+        frame = waveform[i * frame_size: (i + 1) * frame_size]
+        is_speech.append(_rms(frame) >= energy_threshold)
+
+    # Merge frames into speech/silence runs
+    regions = []
+    i = 0
+    while i < len(is_speech):
+        if is_speech[i]:
+            j = i
+            while j < len(is_speech) and is_speech[j]:
+                j += 1
+            # Convert frame indices → ms
+            start_ms = i * frame_ms
+            end_ms = j * frame_ms
+            if (end_ms - start_ms) >= min_speech_ms:
+                regions.append({"start_ms": float(start_ms), "end_ms": float(end_ms)})
+            i = j
+        else:
+            i += 1
+
+    # Merge regions separated by short silences
+    if not regions:
+        return regions
+    merged = [regions[0]]
+    for r in regions[1:]:
+        gap = r["start_ms"] - merged[-1]["end_ms"]
+        if gap < min_silence_ms:
+            merged[-1]["end_ms"] = r["end_ms"]   # bridge the gap
+        else:
+            merged.append(r)
+    return merged
+
+
+def _extract_segment_embedding(waveform: "np.ndarray", start_ms: float, end_ms: float, sample_rate: int = 16000):
+    """Extract ECAPA-TDNN embedding for [start_ms, end_ms] of waveform."""
+    import torch
+    import numpy as np
+
+    start_sample = int(start_ms / 1000 * sample_rate)
+    end_sample   = int(end_ms   / 1000 * sample_rate)
+    segment = waveform[start_sample:end_sample].astype(np.float32)
+
+    # Need at least ~0.5 s for a meaningful embedding
+    if len(segment) < sample_rate // 2:
+        return None
+
+    tensor = torch.tensor(segment).unsqueeze(0)   # [1, T]
+    with torch.no_grad():
+        emb = speaker_model.encode_batch(tensor)   # [1, 1, D]
+    return emb.squeeze()   # [D]
+
+
+def _identify_speaker(
+    live_emb: "torch.Tensor",
+    enrolled: List[EnrolledSpeaker],
+    threshold: float,
+) -> tuple:
+    """
+    Compare live_emb against all enrolled speakers.
+    Returns (best_label, best_similarity) or ("UNKNOWN", similarity) if no match.
+    """
+    import torch
+
+    best_label = "UNKNOWN"
+    best_sim   = -2.0
+
+    for sp in enrolled:
+        stored = torch.tensor(sp.embedding, dtype=torch.float32)
+        cos_sim = float(
+            torch.nn.functional.cosine_similarity(
+                live_emb.unsqueeze(0), stored.unsqueeze(0)
+            ).item()
+        )
+        if cos_sim > best_sim:
+            best_sim   = cos_sim
+            best_label = sp.label if cos_sim >= threshold else "UNKNOWN"
+
+    return best_label, best_sim
+
+
+def _pcm_segment_to_wav(samples: "np.ndarray", sample_rate: int = 16000) -> bytes:
+    """Convert float32 numpy array to 16-bit PCM WAV bytes."""
+    import numpy as np
+    import struct as _struct
+
+    int16 = np.clip(samples * 32767, -32768, 32767).astype(np.int16)
+    pcm_bytes = int16.tobytes()
+    data_size  = len(pcm_bytes)
+    header_size = 44
+
+    buf = bytearray(header_size + data_size)
+    # RIFF header
+    buf[0:4]   = b'RIFF'
+    _struct.pack_into('<I', buf, 4,  36 + data_size)
+    buf[8:12]  = b'WAVE'
+    buf[12:16] = b'fmt '
+    _struct.pack_into('<I',  buf, 16, 16)          # sub-chunk size
+    _struct.pack_into('<H',  buf, 20, 1)           # PCM
+    _struct.pack_into('<H',  buf, 22, 1)           # mono
+    _struct.pack_into('<I',  buf, 24, sample_rate)
+    _struct.pack_into('<I',  buf, 28, sample_rate * 2)  # byte rate
+    _struct.pack_into('<H',  buf, 32, 2)           # block align
+    _struct.pack_into('<H',  buf, 34, 16)          # bits per sample
+    buf[36:40] = b'data'
+    _struct.pack_into('<I',  buf, 40, data_size)
+    buf[44:]   = pcm_bytes
+    return bytes(buf)
+
+
+@app.post("/api/analyze-audio-segment", response_model=AudioAnalysisResponse)
+async def analyze_audio_segment(
+    audio: UploadFile = File(...),
+    enrolled_speakers: str = Form(default="[]"),
+    identification_threshold: str = Form(default="0.10"),
+):
+    """
+    VAD → Diarization → Speaker Identification → Routing
+
+    Accept a WAV file (any sample rate, mono or stereo) plus enrolled speaker
+    embeddings as JSON.  Returns labelled segments and the caller-only WAV
+    (base64) that should be forwarded to Amazon Transcribe.
+
+    Speaker labels:
+      SELF          → owner's own voice (discard)
+      FAMILY_<name> → enrolled family contact (privacy-preserve, discard)
+      UNKNOWN       → the external caller (route to Transcribe + scam engine)
+    """
+    if speaker_model is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Speaker embedding model is not available. Cannot perform diarization.",
+        )
+
+    import numpy as np
+    import torch
+
+    # ── Parse form fields ────────────────────────────────────────────────────
+    try:
+        enrolled_list = json.loads(enrolled_speakers)
+        enrolled = [EnrolledSpeaker(**s) for s in enrolled_list]
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"enrolled_speakers malformed: {exc}")
+
+    try:
+        threshold = float(identification_threshold)
+    except ValueError:
+        threshold = 0.10
+
+    # ── Decode WAV ───────────────────────────────────────────────────────────
+    audio_bytes = await audio.read()
+    if not audio_bytes:
+        raise HTTPException(status_code=400, detail="audio file is empty")
+
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            tmp.write(audio_bytes)
+            tmp_path = tmp.name
+
+        try:
+            import torchaudio
+            waveform, sample_rate = torchaudio.load(tmp_path)
+
+            # Resample to 16 kHz
+            if sample_rate != 16000:
+                waveform = torchaudio.transforms.Resample(sample_rate, 16000)(waveform)
+                sample_rate = 16000
+
+            # Convert to mono float32 numpy
+            if waveform.shape[0] > 1:
+                waveform = waveform.mean(dim=0, keepdim=True)
+            wave_np = waveform.squeeze(0).numpy().astype(np.float32)
+        finally:
+            os.unlink(tmp_path)
+
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Audio decoding failed: {exc}")
+
+    total_ms = len(wave_np) / sample_rate * 1000.0
+
+    # ── Step 1: Energy VAD ───────────────────────────────────────────────────
+    speech_regions = _energy_vad(wave_np, sample_rate=sample_rate)
+
+    if not speech_regions:
+        return AudioAnalysisResponse(
+            segments=[],
+            has_speech=False,
+            caller_audio_b64=None,
+            caller_duration_ms=0.0,
+            speaker_summary={},
+        )
+
+    # ── Step 2 + 3: Per-region embedding → speaker ID ────────────────────────
+    segments_out: List[SegmentResult] = []
+    caller_chunks: List[np.ndarray] = []
+
+    speaker_totals: dict = {}
+
+    for region in speech_regions:
+        start_ms = region["start_ms"]
+        end_ms   = region["end_ms"]
+        dur_ms   = end_ms - start_ms
+
+        # Extract embedding (may return None for very short regions)
+        emb = _extract_segment_embedding(wave_np, start_ms, end_ms, sample_rate)
+
+        if emb is None:
+            # Too short to identify — treat as UNKNOWN to be safe
+            label, sim = "UNKNOWN", None
+        elif enrolled:
+            label, sim = _identify_speaker(emb, enrolled, threshold)
+        else:
+            # No enrolled speakers → everything goes to Transcribe
+            label, sim = "UNKNOWN", None
+
+        # ── Step 4: Routing ─────────────────────────────────────────────────
+        if label == "SELF" or label.startswith("FAMILY_"):
+            route = "discard"
+        else:
+            route = "transcribe"
+            # Collect PCM samples for this segment
+            s_sample = int(start_ms / 1000 * sample_rate)
+            e_sample = int(end_ms   / 1000 * sample_rate)
+            caller_chunks.append(wave_np[s_sample:e_sample])
+
+        seg = SegmentResult(
+            speaker_label=label,
+            start_ms=start_ms,
+            end_ms=end_ms,
+            duration_ms=dur_ms,
+            similarity=round(sim, 4) if sim is not None else None,
+            route=route,
+        )
+        segments_out.append(seg)
+
+        speaker_totals[label] = speaker_totals.get(label, 0.0) + dur_ms
+
+    # ── Assemble caller-only WAV ─────────────────────────────────────────────
+    caller_audio_b64: Optional[str] = None
+    caller_duration_ms = 0.0
+
+    if caller_chunks:
+        caller_wave = np.concatenate(caller_chunks, axis=0)
+        caller_duration_ms = len(caller_wave) / sample_rate * 1000.0
+        wav_bytes = _pcm_segment_to_wav(caller_wave, sample_rate)
+        caller_audio_b64 = base64.b64encode(wav_bytes).decode("utf-8")
+
+    return AudioAnalysisResponse(
+        segments=segments_out,
+        caller_audio_b64=caller_audio_b64,
+        caller_duration_ms=round(caller_duration_ms, 1),
+        has_speech=True,
+        speaker_summary={k: round(v, 1) for k, v in speaker_totals.items()},
+    )
+
+
 def run_backend():
     """Run the FastAPI backend server"""
     import uvicorn
@@ -597,3 +1011,6 @@ def run_backend():
 
 if __name__ == "__main__":
     run_backend()
+
+
+

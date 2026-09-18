@@ -1,5 +1,5 @@
-/**
- * CallTab — state machine: picker → incoming → active
+﻿/**
+ * CallTab â€” state machine: picker â†’ incoming â†’ active
  *   'picking'  : CallerPicker shown
  *   'incoming' : IncomingCallScreen shown (full-screen)
  *   'active'   : ActiveCallScreen shown (full-screen)
@@ -26,6 +26,15 @@ export const CallTab: React.FC<CallTabProps> = ({ ownerPhone, onGoToContacts }) 
   }, [])
 
   const handleAnswer = useCallback(() => {
+    // Prime speech synthesis from the user's gesture so the later voice
+    // mismatch announcement is not blocked by browser autoplay policy.
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.resume()
+      const unlockUtterance = new SpeechSynthesisUtterance('')
+      unlockUtterance.volume = 0
+      window.speechSynthesis.speak(unlockUtterance)
+      window.speechSynthesis.cancel()
+    }
     setPhase('active')
   }, [])
 
@@ -53,6 +62,7 @@ export const CallTab: React.FC<CallTabProps> = ({ ownerPhone, onGoToContacts }) 
     return (
       <ActiveCallScreen
         caller={caller}
+        ownerPhone={ownerPhone}
         onEndCall={handleEndCall}
       />
     )
@@ -69,3 +79,5 @@ export const CallTab: React.FC<CallTabProps> = ({ ownerPhone, onGoToContacts }) 
 }
 
 export default CallTab
+
+

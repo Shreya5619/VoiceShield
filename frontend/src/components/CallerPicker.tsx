@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react'
+﻿import React, { useState, useCallback, useMemo } from 'react'
 import useFamilyContacts, { FamilyContact } from '../hooks/useFamilyContacts'
 import '../styles/CallerPicker.css'
 
@@ -8,6 +8,7 @@ export interface CallerInfo {
   phone: string
   relation?: string
   isUnknown: boolean
+  familyContact?: FamilyContact  // full DynamoDB record, set for known contacts
 }
 
 interface CallerPickerProps {
@@ -40,7 +41,7 @@ export const CallerPicker: React.FC<CallerPickerProps> = ({ ownerPhone, onStartC
     }
     const c = contacts.find((c) => c.id === selectedId)
     if (!c) return null
-    return { id: c.id, name: c.name, phone: c.phone, relation: c.relation, isUnknown: false }
+    return { id: c.id, name: c.name, phone: c.phone, relation: c.relation, isUnknown: false, familyContact: c }
   }, [selectedId, contacts, unknownPhone])
 
   const handleSelect = useCallback((id: string) => {
@@ -53,7 +54,7 @@ export const CallerPicker: React.FC<CallerPickerProps> = ({ ownerPhone, onStartC
 
   return (
     <div className="caller-picker">
-      {/* ── Saved contacts ─────────────────────────────── */}
+      {/* â”€â”€ Saved contacts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {contacts.length > 0 ? (
         <>
           <p className="picker-title">Select Caller</p>
@@ -71,7 +72,7 @@ export const CallerPicker: React.FC<CallerPickerProps> = ({ ownerPhone, onStartC
                   {c.relation && <span className="picker-sub relation">{c.relation}</span>}
                   <p className="picker-sub">{c.phone}</p>
                 </div>
-                {selectedId === c.id && <span className="picker-check">✓</span>}
+                {selectedId === c.id && <span className="picker-check">âœ“</span>}
               </button>
             ))}
           </div>
@@ -86,28 +87,28 @@ export const CallerPicker: React.FC<CallerPickerProps> = ({ ownerPhone, onStartC
         </div>
       )}
 
-      {/* ── Divider ──────────────────────────────────── */}
+      {/* â”€â”€ Divider â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="picker-divider">
         <span>or</span>
       </div>
 
-      {/* ── Unknown caller option ─────────────────────── */}
+      {/* â”€â”€ Unknown caller option â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="picker-grid">
         <button
           className={`picker-card ${selectedId === 'unknown' ? 'selected' : ''}`}
           onClick={() => handleSelect('unknown')}
           aria-pressed={selectedId === 'unknown'}
         >
-          <div className="picker-avatar unknown">❓</div>
+          <div className="picker-avatar unknown">â“</div>
           <div className="picker-info">
             <p className="picker-name">Unknown Caller</p>
             <p className="picker-sub">{unknownPhone}</p>
           </div>
-          {selectedId === 'unknown' && <span className="picker-check">✓</span>}
+          {selectedId === 'unknown' && <span className="picker-check">âœ“</span>}
         </button>
       </div>
 
-      {/* ── Selected preview + simulate button ────────── */}
+      {/* â”€â”€ Selected preview + simulate button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {selectedCaller && (
         <>
           <div className="selected-preview">
@@ -115,7 +116,7 @@ export const CallerPicker: React.FC<CallerPickerProps> = ({ ownerPhone, onStartC
               className={`picker-avatar ${selectedCaller.isUnknown ? 'unknown' : ''}`}
               style={{ width: 40, height: 40, fontSize: '1rem' }}
             >
-              {selectedCaller.isUnknown ? '❓' : selectedCaller.name.charAt(0)}
+              {selectedCaller.isUnknown ? 'â“' : selectedCaller.name.charAt(0)}
             </div>
             <div>
               <p className="preview-label">Incoming call from</p>
@@ -125,7 +126,7 @@ export const CallerPicker: React.FC<CallerPickerProps> = ({ ownerPhone, onStartC
           </div>
 
           <button className="btn-simulate" onClick={handleSimulate}>
-            <span>📲</span> Simulate Incoming Call
+            Start call
           </button>
         </>
       )}
@@ -134,3 +135,4 @@ export const CallerPicker: React.FC<CallerPickerProps> = ({ ownerPhone, onStartC
 }
 
 export default CallerPicker
+

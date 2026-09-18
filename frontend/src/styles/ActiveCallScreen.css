@@ -611,3 +611,545 @@
 .question-speak-btn.speaking .question-speaker-icon {
   opacity: 1;
 }
+
+/* ============================================================
+   Voice match badge
+   ============================================================ */
+
+.voice-match-badge {
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  min-height: 1.6rem;
+  letter-spacing: 0.2px;
+}
+
+.vmb-sampling,
+.vmb-comparing {
+  color: rgba(255, 255, 255, 0.4);
+  animation: vmPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes vmPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+
+.vmb-result {
+  font-weight: 500;
+  transition: color 0.4s;
+}
+
+.vmb-result strong {
+  font-weight: 700;
+}
+
+.vmb-skipped {
+  color: rgba(255, 255, 255, 0.2);
+  font-style: italic;
+}
+
+/* ============================================================
+   Contact details card (shown during active call for known contacts)
+   ============================================================ */
+
+.contact-details-card {
+  margin-top: 0.75rem;
+  width: calc(100% - 3rem);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 0.6rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.cdc-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+}
+
+.cdc-label {
+  flex-shrink: 0;
+  width: 4.5rem;
+  color: rgba(255, 255, 255, 0.28);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-size: 0.64rem;
+}
+
+.cdc-value {
+  color: rgba(255, 255, 255, 0.75);
+  font-weight: 500;
+}
+
+.cdc-mono {
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.5px;
+  font-size: 0.68rem;
+}
+
+.cdc-dim {
+  color: rgba(255, 255, 255, 0.45);
+  font-style: italic;
+}
+
+.cdc-embed-badge {
+  font-size: 0.67rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+}
+
+.cdc-embed-badge.stored {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+  border: 1px solid rgba(74, 222, 128, 0.25);
+}
+
+.cdc-embed-badge.missing {
+  color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ============================================================
+   VoiceMismatchOverlay
+   ============================================================ */
+
+.vmis-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 4, 4, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 350;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  animation: freezeIn 0.22s ease;
+}
+
+.vmis-card {
+  background: #111;
+  border: 1.5px solid rgba(250, 204, 21, 0.35);
+  border-radius: 20px;
+  padding: 1.5rem 1.5rem 1.25rem;
+  width: 100%;
+  max-width: 420px;
+  max-height: 88vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 48px rgba(0,0,0,0.75), 0 0 0 1px rgba(250,204,21,0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.vmis-card::-webkit-scrollbar { width: 4px; }
+.vmis-card::-webkit-scrollbar-track { background: transparent; }
+.vmis-card::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+
+/* Header */
+.vmis-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.vmis-icon {
+  font-size: 1.4rem;
+}
+
+.vmis-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #facc15;
+  margin: 0;
+}
+
+/* Match percentage row */
+.vmis-match-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.vmis-match-label {
+  font-size: 0.72rem;
+  color: rgba(255,255,255,0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.vmis-match-pct {
+  font-size: 1.6rem;
+  font-weight: 800;
+  font-family: 'Courier New', monospace;
+  line-height: 1;
+}
+
+/* Match bar */
+.vmis-match-bar-track {
+  position: relative;
+  width: 100%;
+  height: 6px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 6px;
+  overflow: visible;
+}
+
+.vmis-match-bar-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.5s ease;
+}
+
+.vmis-threshold-marker {
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: 14px;
+  background: rgba(255,255,255,0.4);
+  border-radius: 2px;
+  transform: translateX(-50%);
+}
+
+.vmis-threshold-note {
+  font-size: 0.65rem;
+  color: rgba(255,255,255,0.25);
+  margin: -0.3rem 0 0;
+  text-align: right;
+}
+
+/* Contact row */
+.vmis-contact-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.7rem;
+  background: rgba(255,255,255,0.04);
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.vmis-contact-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: rgba(255,255,255,0.85);
+}
+
+.vmis-contact-relation {
+  font-size: 0.72rem;
+  color: #4ade80;
+  font-weight: 500;
+}
+
+/* Security question box */
+.vmis-question-box {
+  background: rgba(250, 204, 21, 0.06);
+  border: 1px solid rgba(250, 204, 21, 0.2);
+  border-radius: 10px;
+  padding: 0.75rem 0.9rem;
+}
+
+.vmis-question-label {
+  font-size: 0.67rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(250, 204, 21, 0.55);
+  margin: 0 0 0.3rem;
+}
+
+.vmis-question-text {
+  font-size: 0.95rem;
+  color: rgba(255,255,255,0.88);
+  line-height: 1.5;
+  margin: 0;
+  font-style: italic;
+}
+
+.vmis-speak-question {
+  margin-top: 0.65rem;
+  padding: 0.45rem 0.7rem;
+  background: rgba(250, 204, 21, 0.1);
+  border: 1px solid rgba(250, 204, 21, 0.3);
+  border-radius: 8px;
+  color: #facc15;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.vmis-speak-question:hover {
+  background: rgba(250, 204, 21, 0.18);
+}
+
+/* Spoken answer status */
+.vmis-listening {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 2.7rem;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 10px;
+  padding: 0.65rem 0.9rem;
+  color: rgba(255,255,255,0.7);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.vmis-listening.listening {
+  border-color: rgba(74, 222, 128, 0.5);
+  color: #4ade80;
+}
+
+.vmis-listening.heard {
+  border-color: rgba(74, 222, 128, 0.35);
+  color: rgba(255,255,255,0.85);
+}
+
+.vmis-listening.unavailable {
+  border-color: rgba(255, 152, 0, 0.4);
+  color: #ffb74d;
+}
+
+.vmis-listening-dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
+  border-radius: 50%;
+  background: #facc15;
+}
+
+.vmis-listening.listening .vmis-listening-dot {
+  background: #4ade80;
+  box-shadow: 0 0 0 5px rgba(74, 222, 128, 0.14);
+  animation: vmis-listen-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes vmis-listen-pulse {
+  50% { opacity: 0.45; transform: scale(0.75); }
+}
+
+/* Buttons */
+.vmis-btn {
+  width: 100%;
+  border-radius: 10px;
+  padding: 0.68rem 1rem;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s, transform 0.1s;
+  border: 1.5px solid;
+  text-align: center;
+}
+
+.vmis-btn:active { transform: scale(0.985); }
+
+.vmis-btn-verify {
+  background: #4ade80;
+  border-color: #4ade80;
+  color: #07130b;
+}
+.vmis-btn-verify:hover:not(:disabled) {
+  background: #6ee7a0;
+  border-color: #6ee7a0;
+}
+.vmis-btn-verify:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.vmis-btn-trust {
+  background: rgba(255,255,255,0.05);
+  border-color: rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.65);
+  font-weight: 500;
+}
+.vmis-btn-trust:hover {
+  background: rgba(255,255,255,0.09);
+  border-color: rgba(255,255,255,0.25);
+  color: rgba(255,255,255,0.85);
+}
+
+.vmis-btn-end {
+  background: rgba(255, 68, 68, 0.08);
+  border-color: rgba(255, 68, 68, 0.4);
+  color: #ff8888;
+}
+.vmis-btn-end:hover {
+  background: rgba(255, 68, 68, 0.16);
+  border-color: #ff6666;
+  color: #ffaaaa;
+}
+
+.vmis-divider {
+  height: 1px;
+  background: rgba(255,255,255,0.07);
+  margin: 0.1rem 0;
+}
+
+/* ============================================================
+   Call verified badge
+   ============================================================ */
+
+.call-verified-badge {
+  margin-top: 0.6rem;
+  padding: 0.45rem 1rem;
+  background: rgba(74, 222, 128, 0.1);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  border-radius: 20px;
+  color: #4ade80;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+/* ============================================================
+   Privacy Routing Badge
+   Shown below the mic indicator during a call.
+   ============================================================ */
+
+.privacy-routing-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  max-width: calc(100% - 3rem);
+  text-align: center;
+}
+
+.prb-active {
+  background: rgba(74, 222, 128, 0.07);
+  border: 1px solid rgba(74, 222, 128, 0.2);
+  color: rgba(74, 222, 128, 0.75);
+}
+
+.prb-fallback {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.prb-icon {
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.prb-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Animated pulse dot shown while diarization is running */
+.prb-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4ade80;
+  flex-shrink: 0;
+  animation: prbPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes prbPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.35; transform: scale(0.65); }
+}
+
+/* ── Diarization analysis spinner dot ────────────────────── */
+.diarization-analyzing-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #facc15;
+  margin-left: 0.25rem;
+  animation: prbPulse 0.9s ease-in-out infinite;
+}
+
+/* ============================================================
+   Speaker Breakdown table
+   Shows SELF / FAMILY_* / UNKNOWN with time + routing tag.
+   ============================================================ */
+
+.speaker-breakdown {
+  margin-top: 0.45rem;
+  width: calc(100% - 3rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.spk-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.22rem 0.6rem;
+  border-radius: 8px;
+  font-size: 0.68rem;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+.spk-protected {
+  border-color: rgba(74, 222, 128, 0.12);
+}
+
+.spk-transcribed {
+  border-color: rgba(255, 152, 0, 0.15);
+}
+
+.spk-label {
+  flex: 1;
+  color: rgba(255,255,255,0.6);
+  font-weight: 500;
+}
+
+.spk-time {
+  color: rgba(255,255,255,0.3);
+  font-family: 'Courier New', monospace;
+  font-size: 0.64rem;
+}
+
+.spk-route-tag {
+  font-size: 0.62rem;
+  font-weight: 600;
+  padding: 0.1rem 0.4rem;
+  border-radius: 5px;
+  white-space: nowrap;
+}
+
+.spk-protected .spk-route-tag {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+}
+
+.spk-transcribed .spk-route-tag {
+  color: #fb923c;
+  background: rgba(251, 146, 60, 0.1);
+}
+
+/* ── Scam-risk "source" label ─────────────────────────────── */
+.scam-risk-source {
+  font-size: 0.6rem;
+  color: rgba(255, 255, 255, 0.2);
+  font-style: italic;
+  letter-spacing: 0.2px;
+  margin-left: 0.4rem;
+}
