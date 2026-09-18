@@ -241,7 +241,20 @@ def family_table():
     return _dynamodb_table
 
 
+def undecimalize(value):
+    """Convert Decimal values returned by DynamoDB back to Python-native types."""
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, dict):
+        return {key: undecimalize(v) for key, v in value.items()}
+    if isinstance(value, list):
+        return [undecimalize(v) for v in value]
+    return value
+
+
 def family_item_to_response(item: dict) -> FamilyMemberResponse:
+    raw_embedding = item.get("speaker_embedding")
+    speaker_embedding = undecimalize(raw_embedding) if raw_embedding is not None else None
     return FamilyMemberResponse(
         id=item["id"],
         owner_phone=item["owner_phone"],
@@ -249,7 +262,7 @@ def family_item_to_response(item: dict) -> FamilyMemberResponse:
         relation=item.get("relation", ""),
         phone=item["phone"],
         security_question=item.get("security_question", ""),
-        speaker_embedding=item.get("speaker_embedding"),
+        speaker_embedding=speaker_embedding,
     )
 
 
