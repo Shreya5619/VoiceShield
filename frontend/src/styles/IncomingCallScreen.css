@@ -5,7 +5,7 @@
 .incoming-screen {
   position: fixed;
   inset: 0;
-  background: linear-gradient(180deg, #0d1f0d 0%, #0a0a0a 60%, #0a0a0a 100%);
+  background: linear-gradient(180deg, #1e3a8a 0%, #0f172a 60%, #0f172a 100%);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -20,7 +20,7 @@
 .incoming-bg-ring {
   position: absolute;
   border-radius: 50%;
-  border: 1px solid rgba(74, 222, 128, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.12);
   animation: expandRing 3s ease-out infinite;
   pointer-events: none;
 }
@@ -69,7 +69,7 @@
 .incoming-avatar-pulse {
   position: absolute;
   border-radius: 50%;
-  background: rgba(74, 222, 128, 0.12);
+  background: rgba(59, 130, 246, 0.15);
   animation: avatarPulse 2s ease-in-out infinite;
 }
 
@@ -79,12 +79,12 @@
 .incoming-avatar-pulse:nth-child(2) {
   width: 148px; height: 148px;
   animation-delay: 0.4s;
-  background: rgba(74, 222, 128, 0.07);
+  background: rgba(59, 130, 246, 0.1);
 }
 .incoming-avatar-pulse:nth-child(3) {
   width: 178px; height: 178px;
   animation-delay: 0.8s;
-  background: rgba(74, 222, 128, 0.04);
+  background: rgba(59, 130, 246, 0.06);
 }
 
 @keyframes avatarPulse {
@@ -96,17 +96,17 @@
   width: 96px;
   height: 96px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 2.4rem;
   font-weight: 700;
-  color: #0a0a0a;
+  color: #ffffff;
   position: relative;
   z-index: 1;
   text-transform: uppercase;
-  box-shadow: 0 0 0 4px rgba(74, 222, 128, 0.25), 0 8px 32px rgba(0,0,0,0.5);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3), 0 8px 32px rgba(0,0,0,0.5);
 }
 
 .incoming-avatar.unknown {
@@ -131,7 +131,7 @@
 
 .incoming-relation {
   font-size: 0.875rem;
-  color: #4ade80;
+  color: #60a5fa;
   font-weight: 500;
   margin: 0 0 0.4rem 0;
 }
@@ -167,7 +167,7 @@
 }
 
 .swipe-label.decline { color: rgba(255, 100, 100, 0.55); }
-.swipe-label.answer  { color: rgba(74, 222, 128, 0.65); }
+.swipe-label.answer  { color: rgba(96, 165, 250, 0.75); }
 
 .swipe-label-icon { font-size: 1.1rem; }
 
@@ -229,8 +229,8 @@
 .swipe-pill:active { cursor: grabbing; }
 
 .swipe-pill.dragging-right {
-  background: #22c55e;
-  box-shadow: 0 0 28px rgba(34, 197, 94, 0.7);
+  background: #3b82f6;
+  box-shadow: 0 0 28px rgba(59, 130, 246, 0.7);
 }
 
 .swipe-pill.dragging-left {

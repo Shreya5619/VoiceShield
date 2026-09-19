@@ -7,6 +7,19 @@ Predicts whether transcribed audio is a scam or not using ML model
 import re
 import joblib
 
+# ============================================================================
+# CONFIGURATION - SCAM DETECTION THRESHOLD
+# ============================================================================
+# Lower threshold = more sensitive (catches more scams but may have more false positives)
+# Higher threshold = less sensitive (fewer false positives but may miss some scams)
+# Default scikit-learn threshold: 0.50 (50%)
+# Current setting: 0.35 (35%) - MORE SENSITIVE
+SCAM_THRESHOLD = 0.35  # Lowered from default 0.50
+
+print(f"⚙️  Scam Detection Threshold: {SCAM_THRESHOLD:.2%}")
+print("   (Calls with scam probability ≥ {:.0%} will be flagged as SCAM)".format(SCAM_THRESHOLD))
+print()
+
 # Load the trained scam classifier model
 print("Loading scam classifier model...")
 scam_model = joblib.load("voiceguard_scam_model.joblib")

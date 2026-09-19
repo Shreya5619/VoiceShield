@@ -1,10 +1,10 @@
 .scam-prediction-panel {
-  background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
-  border: 1px solid rgba(100, 108, 255, 0.2);
+  background: linear-gradient(135deg, #1e3a8a 0%, #1e293b 100%);
+  border: 1px solid rgba(59, 130, 246, 0.3);
   border-radius: 12px;
   padding: 1.5rem;
   margin: 1rem 0;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
@@ -14,7 +14,7 @@
   align-items: center;
   margin-bottom: 1.5rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid rgba(100, 108, 255, 0.1);
+  border-bottom: 1px solid rgba(59, 130, 246, 0.2);
 }
 
 .panel-header h3 {

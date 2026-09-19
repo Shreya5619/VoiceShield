@@ -4,6 +4,85 @@ import { VoiceSampleRecorder } from './VoiceSampleRecorder'
 import { apiUrl } from '../config/api'
 import '../styles/ContactsTab.css'
 
+/* ── Icon Components ─────────────────────────────────────── */
+const UsersIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+  </svg>
+)
+
+const PlusIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="12" y1="5" x2="12" y2="19" />
+    <line x1="5" y1="12" x2="19" y2="12" />
+  </svg>
+)
+
+const EditIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+  </svg>
+)
+
+const TrashIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6" />
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    <line x1="10" y1="11" x2="10" y2="17" />
+    <line x1="14" y1="11" x2="14" y2="17" />
+  </svg>
+)
+
+const AlertIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <line x1="12" y1="8" x2="12" y2="12" />
+    <line x1="12" y1="16" x2="12.01" y2="16" />
+  </svg>
+)
+
+const ShieldIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+  </svg>
+)
+
+const MicIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+    <line x1="12" y1="19" x2="12" y2="23" />
+    <line x1="8" y1="23" x2="16" y2="23" />
+  </svg>
+)
+
+const LockIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  </svg>
+)
+
+const SendIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="22" y1="2" x2="11" y2="13" />
+    <polygon points="22 2 15 22 11 13 2 9 22 2" />
+  </svg>
+)
+
+const UserXIcon = () => (
+  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+    <circle cx="8.5" cy="7" r="4" />
+    <line x1="18" y1="8" x2="23" y2="13" />
+    <line x1="23" y1="8" x2="18" y2="13" />
+  </svg>
+)
+
 /* ── Blank form shape ────────────────────────────────────── */
 const BLANK_FORM = { name: '', relation: '', phone: '', securityQuestion: '' }
 
@@ -19,6 +98,7 @@ interface ContactFormProps {
   initial?: FormData
   initialEmbedding?: SpeakerEmbedding
   title: string
+  titleIcon: React.ReactNode
   onSave: (data: FormData, speakerEmbedding: SpeakerEmbedding | null) => void
   onCancel: () => void
 }
@@ -27,6 +107,7 @@ const ContactForm: React.FC<ContactFormProps> = ({
   initial = BLANK_FORM,
   initialEmbedding,
   title,
+  titleIcon,
   onSave,
   onCancel,
 }) => {
@@ -66,7 +147,10 @@ const ContactForm: React.FC<ContactFormProps> = ({
 
   return (
     <div className="contact-form-card">
-      <p className="contact-form-title">{title}</p>
+      <div className="contact-form-header">
+        <div className="contact-form-icon">{titleIcon}</div>
+        <p className="contact-form-title">{title}</p>
+      </div>
       <div className="form-grid">
         {/* Name */}
         <div className="form-field">
@@ -116,7 +200,7 @@ const ContactForm: React.FC<ContactFormProps> = ({
 
         {/* Voice sample — spans both columns */}
         <div className="form-field full-width">
-          <label className="form-label">Voice Sample</label>
+          <label className="form-label">Voice Sample (Optional)</label>
           <VoiceSampleRecorder
             onEmbeddingReady={handleEmbeddingReady}
             initialEmbedding={initialEmbedding}
@@ -129,7 +213,7 @@ const ContactForm: React.FC<ContactFormProps> = ({
           Cancel
         </button>
         <button className="btn-save" onClick={handleSave}>
-          Save
+          Save Contact
         </button>
       </div>
     </div>
@@ -160,7 +244,8 @@ const ContactCard: React.FC<ContactCardProps> = ({
     return (
       <div className="contact-card editing">
         <ContactForm
-          title="✏️ Edit Contact"
+          title="Edit Contact"
+          titleIcon={<EditIcon />}
           initial={{
             name: contact.name,
             relation: contact.relation,
@@ -188,11 +273,15 @@ const ContactCard: React.FC<ContactCardProps> = ({
           <span className="contact-phone">{contact.phone}</span>
         </div>
         {contact.securityQuestion && (
-          <p className="contact-security">🔐 {contact.securityQuestion}</p>
+          <p className="contact-security">
+            <LockIcon />
+            <span>{contact.securityQuestion}</span>
+          </p>
         )}
         {contact.speakerEmbedding && (
           <p className="contact-voice-badge" title={`${contact.speakerEmbedding.dim}d embedding · ${contact.speakerEmbedding.generatedAt}`}>
-            🎙️ Voice sample on file
+            <MicIcon />
+            <span>Voice sample on file</span>
           </p>
         )}
       </div>
@@ -200,22 +289,32 @@ const ContactCard: React.FC<ContactCardProps> = ({
       <div className="contact-actions">
         <button
           className={`btn-icon emergency ${contact.isEmergencyContact ? 'active' : ''}`}
-          title="Toggle emergency contact"
+          title={contact.isEmergencyContact ? "Remove from emergency contacts" : "Set as emergency contact"}
           onClick={onToggleEmergency}
           aria-label={`Toggle emergency contact for ${contact.name}`}
         >
-          {contact.isEmergencyContact ? '⚡ Emergency' : '🛡️ Set emergency'}
+          {contact.isEmergencyContact ? (
+            <>
+              <AlertIcon />
+              <span>Emergency</span>
+            </>
+          ) : (
+            <>
+              <ShieldIcon />
+              <span>Set emergency</span>
+            </>
+          )}
         </button>
-        <button className="btn-icon edit" title="Edit" onClick={onEdit} aria-label={`Edit ${contact.name}`}>
-          ✏️
+        <button className="btn-icon edit" title="Edit contact" onClick={onEdit} aria-label={`Edit ${contact.name}`}>
+          <EditIcon />
         </button>
         <button
           className="btn-icon delete"
-          title="Delete"
+          title="Delete contact"
           onClick={onDelete}
           aria-label={`Delete ${contact.name}`}
         >
-          🗑️
+          <TrashIcon />
         </button>
       </div>
     </div>
@@ -286,7 +385,8 @@ export const ContactsTab: React.FC<ContactsTabProps> = ({ ownerPhone }) => {
       {/* Header */}
       <div className="contacts-header">
         <h2 className="contacts-title">
-          <span>👨‍👩‍👧</span> Family Contacts
+          <UsersIcon />
+          <span>Family Contacts</span>
         </h2>
         {!showAddForm && (
           <button
@@ -296,44 +396,62 @@ export const ContactsTab: React.FC<ContactsTabProps> = ({ ownerPhone }) => {
               setShowAddForm(true)
             }}
           >
-            <span>＋</span> Add Contact
+            <PlusIcon />
+            <span>Add Contact</span>
           </button>
         )}
       </div>
 
       {showAddForm && (
         <ContactForm
-          title="➕ New Contact"
+          title="New Contact"
+          titleIcon={<PlusIcon />}
           onSave={handleAdd}
           onCancel={() => setShowAddForm(false)}
         />
       )}
 
       <section className="contact-form-card">
-        <p className="contact-form-title">Send your voice</p>
+        <div className="contact-form-header">
+          <div className="contact-form-icon">
+            <SendIcon />
+          </div>
+          <p className="contact-form-title">Send Your Voice</p>
+        </div>
+        <p className="contact-form-description">
+          Share your voice profile with family members so they can verify it's really you calling.
+        </p>
         <div className="form-grid">
           <div className="form-field full-width">
-            <label className="form-label">Family member phone</label>
+            <label className="form-label">Family member's phone number</label>
             <input className="form-input" type="tel" value={sharePhone} onChange={(e) => setSharePhone(e.target.value)} placeholder="Enter their phone number" />
           </div>
           <div className="form-field full-width">
+            <label className="form-label">Record your voice</label>
             <VoiceSampleRecorder onEmbeddingReady={setShareEmbedding} />
           </div>
         </div>
         <div className="form-actions">
-          <button className="btn-save" onClick={sendVoice}>Send voice</button>
+          <button className="btn-save" onClick={sendVoice}>
+            <SendIcon />
+            <span>Send Voice Profile</span>
+          </button>
         </div>
-        {shareMessage && <p className="field-error">{shareMessage}</p>}
+        {shareMessage && <p className={shareMessage.includes('sent') ? 'share-success' : 'field-error'}>{shareMessage}</p>}
       </section>
 
       {/* Empty state */}
       {contacts.length === 0 && !showAddForm && (
         <div className="contacts-empty">
-          <div className="contacts-empty-icon">👥</div>
-          <p>No family contacts yet.</p>
-          <p style={{ marginTop: '0.4rem', fontSize: '0.85rem' }}>
-            Add contacts to quickly select them when simulating a call.
-          </p>
+          <div className="contacts-empty-icon">
+            <UserXIcon />
+          </div>
+          <h3>No family contacts yet</h3>
+          <p>Add contacts to quickly select them when receiving calls and enable voice verification.</p>
+          <button className="btn-add-contact" onClick={() => setShowAddForm(true)}>
+            <PlusIcon />
+            <span>Add Your First Contact</span>
+          </button>
         </div>
       )}
 

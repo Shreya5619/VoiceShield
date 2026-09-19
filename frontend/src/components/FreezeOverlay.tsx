@@ -8,6 +8,7 @@ interface FreezeOverlayProps {
   onDismiss: () => void
   onResumeCall: () => void
   onMarkAsSpam: () => void
+  languageCode?: string  // 'en' or 'hi'
 }
 
 function getRiskColor(level?: string): string {
@@ -19,27 +20,71 @@ function getRiskColor(level?: string): string {
   }
 }
 
+function isHindi(languageCode: string): boolean {
+  return languageCode.toLowerCase().startsWith('hi')
+}
+
+function getVoicesWhenReady(): Promise<SpeechSynthesisVoice[]> {
+  const synthesis = window.speechSynthesis
+  const voices = synthesis.getVoices()
+  if (voices.length > 0) return Promise.resolve(voices)
+
+  return new Promise((resolve) => {
+    let settled = false
+    const finish = () => {
+      if (settled) return
+      settled = true
+      synthesis.removeEventListener('voiceschanged', finish)
+      resolve(synthesis.getVoices())
+    }
+    synthesis.addEventListener('voiceschanged', finish)
+    window.setTimeout(finish, 1000)
+  })
+}
+
+function selectVoice(voices: SpeechSynthesisVoice[], languageCode: string): SpeechSynthesisVoice | undefined {
+  if (isHindi(languageCode)) {
+    return voices.find((voice) => voice.lang.toLowerCase().startsWith('hi'))
+      ?? voices.find((voice) => voice.name.toLowerCase().includes('hindi'))
+  }
+
+  return voices.find((voice) =>
+    voice.lang.toLowerCase().startsWith('en') &&
+    /google|natural|neural/i.test(voice.name),
+  ) ?? voices.find((voice) => voice.lang.toLowerCase().startsWith('en'))
+}
+
 /* ── Speech synthesis hook ───────────────────────────────── */
-function useSpeech() {
+function useSpeech(languageCode: string = 'en') {
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null)
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
+  const speechRequestRef = useRef(0)
+  const speakingIndexRef = useRef<number | null>(null)
+
+  const updateSpeakingIndex = useCallback((index: number | null) => {
+    speakingIndexRef.current = index
+    setSpeakingIndex(index)
+  }, [])
 
   // Cancel speech on unmount
   useEffect(() => {
     return () => {
+      speechRequestRef.current += 1
       window.speechSynthesis.cancel()
     }
   }, [])
 
-  const speak = useCallback((text: string, index: number) => {
+  const speak = useCallback(async (text: string, index: number) => {
     // If this question is already playing, stop it
-    if (speakingIndex === index) {
+    if (speakingIndexRef.current === index) {
+      speechRequestRef.current += 1
       window.speechSynthesis.cancel()
-      setSpeakingIndex(null)
+      updateSpeakingIndex(null)
       return
     }
 
     // Cancel any current speech
+    const requestId = ++speechRequestRef.current
     window.speechSynthesis.cancel()
 
     const utterance = new SpeechSynthesisUtterance(text)
@@ -47,27 +92,30 @@ function useSpeech() {
     utterance.pitch = 1.0
     utterance.volume = 1.0
 
-    // Pick a natural English voice if available
-    const voices = window.speechSynthesis.getVoices()
-    const preferred = voices.find(
-      (v) =>
-        v.lang.startsWith('en') &&
-        (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Neural')),
-    )
-    if (preferred) utterance.voice = preferred
+    utterance.lang = isHindi(languageCode) ? 'hi-IN' : 'en-US'
+    const voices = await getVoicesWhenReady()
+    if (requestId !== speechRequestRef.current) return
+    const voice = selectVoice(voices, languageCode)
+    if (voice) utterance.voice = voice
 
-    utterance.onstart = () => setSpeakingIndex(index)
-    utterance.onend   = () => setSpeakingIndex(null)
-    utterance.onerror = () => setSpeakingIndex(null)
+    utterance.onstart = () => updateSpeakingIndex(index)
+    utterance.onend   = () => {
+      if (requestId === speechRequestRef.current) updateSpeakingIndex(null)
+    }
+    utterance.onerror = () => {
+      if (requestId === speechRequestRef.current) updateSpeakingIndex(null)
+    }
 
     utteranceRef.current = utterance
+    window.speechSynthesis.resume()
     window.speechSynthesis.speak(utterance)
-  }, [speakingIndex])
+  }, [languageCode, updateSpeakingIndex])
 
   const cancel = useCallback(() => {
+    speechRequestRef.current += 1
     window.speechSynthesis.cancel()
-    setSpeakingIndex(null)
-  }, [])
+    updateSpeakingIndex(null)
+  }, [updateSpeakingIndex])
 
   return { speak, cancel, speakingIndex }
 }
@@ -79,26 +127,29 @@ export const FreezeOverlay: React.FC<FreezeOverlayProps> = ({
   onDismiss,
   onResumeCall,
   onMarkAsSpam,
+  languageCode = 'en',
 }) => {
-  const { speak, cancel, speakingIndex } = useSpeech()
-  const announcementSpokenRef = useRef(false)
+  const { speak, cancel, speakingIndex } = useSpeech(languageCode)
+  const [activeView, setActiveView] = useState<'protected' | 'caller'>('protected')
 
   const hasContent      = !!(result?.summary || (result?.verification_questions?.length ?? 0) > 0)
   const showErrorBanner = !!(result?.analysis_error && !hasContent)
 
   useEffect(() => {
-    if (!hasContent || announcementSpokenRef.current) return
+    if (!hasContent) return
 
-    announcementSpokenRef.current = true
-    const utterance = new SpeechSynthesisUtterance(
-      'Your call is on hold due to suspicious activity. Answer the questions to proceed.',
-    )
-    utterance.rate = 0.92
-    utterance.pitch = 1.0
-    utterance.volume = 1.0
-    window.speechSynthesis.cancel()
-    window.speechSynthesis.speak(utterance)
-  }, [hasContent])
+    const hindi = isHindi(languageCode)
+    const summary = result?.summary?.slice(0, 600) ?? ''
+    const speechText = activeView === 'protected'
+      ? hindi
+        ? `${summary} कृपया नीचे दिए गए किसी एक सत्यापन प्रश्न को चुनें।`
+        : `${summary} Please select one of the verification questions below.`
+      : hindi
+        ? 'संदिग्ध गतिविधि के कारण आपकी कॉल रोक दी गई है। कृपया सत्यापन प्रश्नों का उत्तर दें।'
+        : 'Your call has been put on hold due to suspicious activity. Please answer the verification questions.'
+
+    speak(speechText, -1)
+  }, [activeView, hasContent, languageCode, result?.summary, speak])
 
   const handleDismiss = useCallback(() => {
     cancel()
@@ -141,8 +192,31 @@ export const FreezeOverlay: React.FC<FreezeOverlayProps> = ({
           </div>
         )}
 
+        {hasContent && (
+          <div className="freeze-view-switcher" role="tablist" aria-label="Call views">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeView === 'protected'}
+              className={`freeze-view-tab ${activeView === 'protected' ? 'active' : ''}`}
+              onClick={() => setActiveView('protected')}
+            >
+              {isHindi(languageCode) ? '🛡️ आपकी स्क्रीन' : '🛡️ Protected View'}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeView === 'caller'}
+              className={`freeze-view-tab ${activeView === 'caller' ? 'active' : ''}`}
+              onClick={() => setActiveView('caller')}
+            >
+              {isHindi(languageCode) ? '📞 कॉलर स्क्रीन' : '📞 Caller View'}
+            </button>
+          </div>
+        )}
+
         {/* ── Result content — shown as soon as result exists, regardless of isLoading ── */}
-        {result && (
+        {result && activeView === 'protected' && (
           <>
             {/* Risk level badge */}
             {result.risk_level && (
@@ -250,6 +324,35 @@ export const FreezeOverlay: React.FC<FreezeOverlayProps> = ({
               </div>
             )}
           </>
+        )}
+
+        {result && activeView === 'caller' && (
+          <section className="caller-hold-view" aria-label="Caller view">
+            <div className="caller-hold-icon" aria-hidden="true">⏸</div>
+            <p className="caller-hold-eyebrow">{isHindi(languageCode) ? 'कॉल रोक दी गई है' : 'Call temporarily paused'}</p>
+            <h3 className="caller-hold-title">
+              {isHindi(languageCode)
+                ? 'संदिग्ध गतिविधि के कारण आपकी कॉल रोक दी गई है।'
+                : 'Your call has been put on hold due to suspicious activity.'}
+            </h3>
+            <p className="caller-hold-message">
+              {isHindi(languageCode)
+                ? 'कृपया सत्यापन प्रश्नों का उत्तर दें।'
+                : 'Please answer the verification questions.'}
+            </p>
+            <button
+              type="button"
+              className="caller-speak-btn"
+              onClick={() => speak(
+                isHindi(languageCode)
+                  ? 'संदिग्ध गतिविधि के कारण आपकी कॉल रोक दी गई है। कृपया सत्यापन प्रश्नों का उत्तर दें।'
+                  : 'Your call has been put on hold due to suspicious activity. Please answer the verification questions.',
+                -1,
+              )}
+            >
+              🔊 {isHindi(languageCode) ? 'संदेश पढ़कर सुनाएं' : 'Read hold message aloud'}
+            </button>
+          </section>
         )}
       </div>
     </div>

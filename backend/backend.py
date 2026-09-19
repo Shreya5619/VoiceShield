@@ -349,7 +349,8 @@ class LanguagePreference(BaseModel):
 
 class AnalyzeScamRequest(BaseModel):
     transcript: str
-    source_language: Optional[str] = None  # BCP-47 code, e.g. 'hi-IN' (None = English)
+    source_language: Optional[str] = None  # BCP-47 code, e.g. 'hi-IN' (detected language from audio)
+    user_language: Optional[str] = "en"  # 'en' or 'hi' - user's preferred language for AI responses
 
 class AnalyzeScamResponse(BaseModel):
     is_scam: bool
@@ -913,10 +914,16 @@ async def analyze_scam(request_data: AnalyzeScamRequest):
 
     # Step 2: If not a scam, return prediction only
     if not pred_result["is_scam"]:
+        print(f"⚠️  Not calling AgentCore: is_scam={pred_result['is_scam']}, probability={pred_result['scam_probability']}")
         return AnalyzeScamResponse(**pred_result)
 
-    if pred_result["scam_probability"] < 0.80:
+    # Threshold: Send to AgentCore for LLM analysis if scam probability >= 0.70 (70%)
+    # This balances sensitivity with avoiding too many false positive deep analyses
+    if pred_result["scam_probability"] < 0.70:
+        print(f"⚠️  Not calling AgentCore: probability {pred_result['scam_probability']} < 0.70 threshold")
         return AnalyzeScamResponse(**pred_result)
+
+    print(f"✅ Calling AgentCore: is_scam={pred_result['is_scam']}, probability={pred_result['scam_probability']}")
 
     # Step 3: Call AgentCore for LLM analysis (with guard)
     global _last_agentcore_request_time
@@ -941,16 +948,12 @@ async def analyze_scam(request_data: AnalyzeScamRequest):
         _last_agentcore_request_time = now
 
         agentcore_url = os.getenv("AGENTCORE_INVOCATION_URL", "http://localhost:8080/invocations")
+        print(f"🌐 Sending request to AgentCore at {agentcore_url}")
 
         try:
-            # Get user's language preference
-            user_language = "en"  # default to English
-            source_lang = request_data.source_language
-            if source_lang:
-                # Extract language code from BCP-47 tag (e.g., 'hi-IN' -> 'hi', 'en-US' -> 'en')
-                lang_code = source_lang.split("-")[0].lower()
-                if lang_code in ("hi", "en"):
-                    user_language = lang_code
+            # Use the user's preferred language for AI responses (from frontend setting)
+            user_language = request_data.user_language or "en"
+            print(f"🌐 User preferred language: {user_language}")
             
             async with httpx.AsyncClient(timeout=60.0) as client:
                 response = await client.post(

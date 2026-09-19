@@ -28,7 +28,7 @@ interface ActiveCallScreenProps {
   languageCode?: string
 }
 
-const SCAM_THRESHOLD = 0.8
+const SCAM_THRESHOLD = 0.70  // 70% - matches backend AgentCore threshold
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 
@@ -96,6 +96,11 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
   ownerPhone,
   languageCode = 'en',  // default to English
 }) => {
+
+  // Log language preference for debugging
+  useEffect(() => {
+    console.log('🌐 ActiveCallScreen language preference:', languageCode)
+  }, [languageCode])
 
   /* ── Call timer ───────────────────────────────────────────────────────── */
   const [elapsed, setElapsed] = useState(0)
@@ -498,6 +503,7 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
             }),
           })
             .then((r) => {
+              console.log('🌐 Sent analyze-scam request with user_language:', languageCode)
               if (!r.ok) throw new Error(`HTTP ${r.status}`)
               return r.json() as Promise<ScamAnalysisResult>
             })
@@ -624,6 +630,53 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
           <p className="call-number">{caller.phone}</p>
           <p className="call-timer">{formatDuration(elapsed)}</p>
 
+          {/* Circular risk gauge */}
+          {!callVerified && scamProb > 0 && (
+            <div className="risk-gauge-container">
+              <svg className="risk-gauge" width="80" height="80" viewBox="0 0 80 80">
+                <circle
+                  className="risk-gauge-bg"
+                  cx="40"
+                  cy="40"
+                  r="34"
+                  fill="none"
+                  stroke="rgba(255,255,255,0.1)"
+                  strokeWidth="6"
+                />
+                <circle
+                  className="risk-gauge-fill"
+                  cx="40"
+                  cy="40"
+                  r="34"
+                  fill="none"
+                  stroke={riskColor}
+                  strokeWidth="6"
+                  strokeDasharray={`${scamProb * 213.6} 213.6`}
+                  strokeLinecap="round"
+                  transform="rotate(-90 40 40)"
+                  style={{
+                    filter: `drop-shadow(0 0 6px ${riskColor})`,
+                    transition: 'stroke-dasharray 0.6s ease, stroke 0.4s ease'
+                  }}
+                />
+                <text
+                  x="40"
+                  y="40"
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fill={riskColor}
+                  fontSize="18"
+                  fontWeight="800"
+                  fontFamily="'Courier New', monospace"
+                  style={{ textShadow: `0 0 8px ${riskColor}` }}
+                >
+                  {(scamProb * 100).toFixed(0)}%
+                </text>
+              </svg>
+              <span className="risk-gauge-label">{riskLabel}</span>
+            </div>
+          )}
+
           <div className="call-mic-indicator">
             <div className={`mic-dot ${isMuted ? 'muted' : ''}`} />
             <span>{isMuted ? 'Muted' : isRecording ? 'Recording' : 'Connecting…'}</span>
@@ -632,7 +685,7 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
             )}
           </div>
 
-          {/* ── Detected language badge ───────────────────────────────── */}
+          {/* ── Language badge ───────────────────────────────── */}
           {detectedLanguage && (
             <div
               className={`language-badge ${isHindi ? 'lang-hindi' : 'lang-english'}`}
@@ -641,6 +694,11 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
               {isHindi ? '🇮🇳 हिंदी → EN' : '🇺🇸 English'}
             </div>
           )}
+
+          {/* ── AI Response Language indicator ───────────────── */}
+          <div className="ai-response-language-badge">
+            🤖 AI responses in: {languageCode === 'hi' ? 'हिंदी (Hindi)' : 'English'}
+          </div>
 
           {/* ── Privacy routing badge ─────────────────────────────────── */}
           {privacyMode !== 'off' && (
@@ -816,6 +874,9 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
           <div className="scam-risk-bar-wrap">
             <div className="scam-risk-header">
               <span className="scam-risk-label">🛡️ Scam Risk</span>
+              <span className="scam-risk-percentage" style={{ color: riskColor }}>
+                {(scamProb * 100).toFixed(1)}%
+              </span>
               <span className="scam-risk-value" style={{ color: riskColor }}>
                 {riskLabel}
               </span>
@@ -871,6 +932,7 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
             setShowFreeze(false)
           }}
           onMarkAsSpam={handleMarkAsSpam}
+          languageCode={languageCode}
         />
       )}
     </>

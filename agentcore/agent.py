@@ -89,19 +89,7 @@ def build_prompt(request: InvocationRequest) -> str:
         ", ".join(pred.triggers_detected) if pred.triggers_detected else "none detected"
     )
     
-    # Language-specific instructions
-    language_code = request.user_language or "en"
-    if language_code == "hi":
-        language_instruction = (
-            "IMPORTANT: Respond in Hindi (हिंदी). All your output should be in Hindi, "
-            "including the summary and verification questions."
-        )
-    else:
-        language_instruction = (
-            "IMPORTANT: Respond in English. All your output should be in English, "
-            "including the summary and verification questions."
-        )
-    
+    # Build the main analysis prompt
     return (
         "You are a scam-call analysis expert assistant embedded in VoiceShield, "
         "a real-time call protection system.\n\n"
@@ -122,7 +110,6 @@ def build_prompt(request: InvocationRequest) -> str:
         "information the caller should know if genuine (e.g., employee ID, company "
         "registration number, department, case reference number, GST number, originating "
         "office address).\n\n"
-        f"{language_instruction}\n\n"
         "Respond ONLY with valid JSON in this exact format (no markdown, no code fences):\n"
         '{\n'
         '  "summary": "<your summary here>",\n'
@@ -132,6 +119,23 @@ def build_prompt(request: InvocationRequest) -> str:
         '  ]\n'
         '}'
     )
+
+
+def get_language_system_message(language_code: str) -> str:
+    """Get the system message for the specified language."""
+    if language_code == "hi":
+        return (
+            "You are a helpful assistant. You MUST respond in Hindi language (हिंदी भाषा में जवाब दें). "
+            "Write ALL your output in Hindi using Devanagari script. "
+            "Do not use English for the content - only Hindi. "
+            "However, keep the JSON field names in English (summary, verification_questions) "
+            "but write the content VALUES in Hindi."
+        )
+    else:
+        return (
+            "You are a helpful assistant. Respond in English language. "
+            "Write ALL your output in English."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -235,13 +239,19 @@ strands_agent = None  # initialised in lifespan startup
 async def invoke_agent(request: InvocationRequest) -> AnalysisResponse:
     """Send the prompt to Bedrock via the strands Agent and parse the JSON response."""
     prompt = build_prompt(request)
+    language_code = request.user_language or "en"
+    system_message = get_language_system_message(language_code)
+    
+    logger.info(f"Invoking agent with language: {language_code}")
+    logger.info(f"System message: {system_message[:100]}...")
 
     # Run the synchronous strands call in a thread pool to avoid blocking the event loop
     loop = asyncio.get_event_loop()
     try:
+        # Call the agent with system message
         result = await loop.run_in_executor(
             None,
-            lambda: strands_agent(prompt),
+            lambda: strands_agent(prompt, system=system_message),
         )
     except Exception as exc:
         logger.error("Strands agent call failed: %s: %s", type(exc).__name__, exc)
@@ -258,6 +268,43 @@ async def invoke_agent(request: InvocationRequest) -> AnalysisResponse:
             status_code=503,
             detail=f"Model returned non-JSON response: {exc}",
         )
+
+    # If Hindi was requested but model returned English, translate it
+    if language_code == "hi":
+        summary = data.get("summary", "")
+        # Check if response contains Devanagari characters
+        has_hindi = any('\u0900' <= char <= '\u097F' for char in summary)
+        
+        if not has_hindi and summary:
+            logger.warning("Model returned English despite Hindi request - using Amazon Translate as fallback")
+            try:
+                import boto3
+                translate_client = boto3.client("translate", region_name=os.environ.get("AWS_REGION", "us-east-1"))
+                
+                # Translate summary
+                summary_result = translate_client.translate_text(
+                    Text=summary,
+                    SourceLanguageCode="en",
+                    TargetLanguageCode="hi"
+                )
+                data["summary"] = summary_result["TranslatedText"]
+                
+                # Translate questions
+                questions = data.get("verification_questions", [])
+                translated_questions = []
+                for q in questions:
+                    q_result = translate_client.translate_text(
+                        Text=q,
+                        SourceLanguageCode="en",
+                        TargetLanguageCode="hi"
+                    )
+                    translated_questions.append(q_result["TranslatedText"])
+                data["verification_questions"] = translated_questions
+                
+                logger.info("Successfully translated response to Hindi using Amazon Translate")
+            except Exception as e:
+                logger.error(f"Translation fallback failed: {e}")
+                # Continue with English response rather than failing
 
     risk_level = compute_risk_level(request.prediction.scam_probability)
 
