@@ -7,7 +7,7 @@ import re
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from typing import List
+from typing import List, Optional
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
@@ -20,7 +20,9 @@ import uvicorn
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-REQUIRED_ENV_VARS = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_REGION", "BEDROCK_MODEL_ID"]
+# ECS supplies AWS credentials through the task role. Static access keys are
+# only needed for local development and must not be required in production.
+REQUIRED_ENV_VARS = ["AWS_REGION", "BEDROCK_MODEL_ID"]
 
 # ---------------------------------------------------------------------------
 # Pydantic Models
@@ -44,6 +46,7 @@ class PredictionInput(BaseModel):
 class InvocationRequest(BaseModel):
     transcript: str = Field(..., min_length=1)
     prediction: PredictionInput
+    user_language: Optional[str] = "en"  # 'en' or 'hi' - user's preferred language for responses
 
 
 class AnalysisResponse(BaseModel):
@@ -85,6 +88,20 @@ def build_prompt(request: InvocationRequest) -> str:
     triggers_list = (
         ", ".join(pred.triggers_detected) if pred.triggers_detected else "none detected"
     )
+    
+    # Language-specific instructions
+    language_code = request.user_language or "en"
+    if language_code == "hi":
+        language_instruction = (
+            "IMPORTANT: Respond in Hindi (हिंदी). All your output should be in Hindi, "
+            "including the summary and verification questions."
+        )
+    else:
+        language_instruction = (
+            "IMPORTANT: Respond in English. All your output should be in English, "
+            "including the summary and verification questions."
+        )
+    
     return (
         "You are a scam-call analysis expert assistant embedded in VoiceShield, "
         "a real-time call protection system.\n\n"
@@ -105,6 +122,7 @@ def build_prompt(request: InvocationRequest) -> str:
         "information the caller should know if genuine (e.g., employee ID, company "
         "registration number, department, case reference number, GST number, originating "
         "office address).\n\n"
+        f"{language_instruction}\n\n"
         "Respond ONLY with valid JSON in this exact format (no markdown, no code fences):\n"
         '{\n'
         '  "summary": "<your summary here>",\n'

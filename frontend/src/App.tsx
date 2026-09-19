@@ -12,6 +12,14 @@ function normalizePhone(phone: string): string {
   return phone.replace(/[^\d+]/g, '')
 }
 
+// Shield Icon Component
+const ShieldIcon = () => (
+  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    <path d="M9 12l2 2 4-4" />
+  </svg>
+)
+
 function App() {
   const [phone, setPhone] = useState(() => localStorage.getItem(PHONE_STORAGE_KEY) ?? '')
   const [phoneInput, setPhoneInput] = useState(phone)
@@ -33,21 +41,25 @@ function App() {
     return (
       <main className="phone-login">
         <div className="phone-login-card">
-          <div className="phone-login-logo">🛡️</div>
+          <div className="phone-login-logo">
+            <ShieldIcon />
+          </div>
           <h1>Welcome to VoiceShield</h1>
-          <p>Enter your mobile number to access your protected call space.</p>
+          <p>Protect your calls with AI-powered scam detection and voice verification.</p>
           <form onSubmit={handleLogin}>
-            <label htmlFor="mobile-number">Mobile number</label>
-            <input
-              id="mobile-number"
-              type="tel"
-              autoComplete="tel"
-              placeholder="e.g. +1 555 123 4567"
-              value={phoneInput}
-              onChange={(event) => setPhoneInput(event.target.value)}
-              required
-            />
-            <button type="submit">Continue</button>
+            <div>
+              <label htmlFor="mobile-number">Mobile number</label>
+              <input
+                id="mobile-number"
+                type="tel"
+                autoComplete="tel"
+                placeholder="+1 (555) 123-4567"
+                value={phoneInput}
+                onChange={(event) => setPhoneInput(event.target.value)}
+                required
+              />
+            </div>
+            <button type="submit">Get Started</button>
           </form>
         </div>
       </main>

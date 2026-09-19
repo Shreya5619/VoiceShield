@@ -172,6 +172,10 @@ export interface CredentialRequest {
 export interface TranscriptionSegment {
   id: string;
   transcript: string;
+  /** English translation of the transcript (set when original was not English) */
+  translatedTranscript?: string;
+  /** BCP-47 language code detected by Transcribe, e.g. 'en-US' or 'hi-IN' */
+  detectedLanguage?: string;
   isPartial: boolean;
   confidence: number;
   items: TranscriptionItem[];

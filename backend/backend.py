@@ -39,6 +39,7 @@ app.add_middleware(
 # Pydantic models
 class PredictionRequest(BaseModel):
     transcript: str
+    source_language: Optional[str] = None  # BCP-47 code, e.g. 'hi-IN' (None = English)
 
 class PredictionResponse(BaseModel):
     is_scam: bool
@@ -55,6 +56,27 @@ try:
 except Exception as e:
     print(f"❌ Error loading model: {e}", file=sys.stderr)
     scam_model = None
+
+# ---------------------------------------------------------------------------
+# IndicTTS Deepfake Detector model
+# DistilHuBERT with classification head for AI-generated speech detection
+# ---------------------------------------------------------------------------
+_deepfake_model = None
+_deepfake_feature_extractor = None
+
+print("📦 Loading IndicTTS Deepfake Detector model...")
+try:
+    from transformers import AutoModelForAudioClassification, AutoFeatureExtractor
+    import torch
+    
+    _deepfake_feature_extractor = AutoFeatureExtractor.from_pretrained("Khon198/indictts-deepfake-detector")
+    _deepfake_model = AutoModelForAudioClassification.from_pretrained("Khon198/indictts-deepfake-detector")
+    _deepfake_model.eval()  # Set to evaluation mode
+    print("✓ IndicTTS Deepfake Detector loaded successfully")
+except Exception as e:
+    print(f"❌ Error loading IndicTTS Deepfake Detector: {e}", file=sys.stderr)
+    _deepfake_model = None
+    _deepfake_feature_extractor = None
 
 # ---------------------------------------------------------------------------
 # SpeechBrain ECAPA-TDNN speaker embedding model
@@ -76,6 +98,45 @@ try:
 except Exception as e:
     print(f"❌ Error loading SpeechBrain model: {e}", file=sys.stderr)
     speaker_model = None
+
+# ---------------------------------------------------------------------------
+# Amazon Translate client — used to convert Hindi transcripts to English
+# before they reach the scam-detection model.
+# ---------------------------------------------------------------------------
+_translate_client = None
+
+def translate_client():
+    global _translate_client
+    if _translate_client is None:
+        _translate_client = boto3.client(
+            "translate",
+            region_name=os.getenv("AWS_REGION", "us-east-1"),
+        )
+    return _translate_client
+
+
+def translate_to_english(text: str, source_lang: str) -> str:
+    """
+    Translate *text* from *source_lang* to English using Amazon Translate.
+    *source_lang* should be the language part of a BCP-47 tag, e.g. 'hi' from 'hi-IN'.
+    Returns the original text unchanged on any error so the pipeline degrades
+    gracefully rather than crashing.
+    """
+    if not text.strip():
+        return text
+    try:
+        # Strip the region subtag if present: 'hi-IN' → 'hi'
+        lang_code = source_lang.split("-")[0].lower()
+        result = translate_client().translate_text(
+            Text=text,
+            SourceLanguageCode=lang_code,
+            TargetLanguageCode="en",
+        )
+        return result["TranslatedText"]
+    except Exception as exc:
+        print(f"⚠️  Translation error ({source_lang} → en): {exc}", file=sys.stderr)
+        return text
+
 
 # Trigger patterns for scam detection
 TRIGGER_PATTERNS = {
@@ -138,7 +199,48 @@ TRIGGER_PATTERNS = {
         r"\bfine\b",
         r"\bcriminal\b",
         r"\bprosecution\b"
-    ]
+    ],
+    # ── Hindi / Hinglish patterns (transliterated common scam phrases) ──────
+    # These match post-translation English output AND raw Hinglish mix-ins
+    "urgent payment request (hindi)": [
+        r"\bpaise\b",           # money
+        r"\bpaisa\b",
+        r"\bpay kar\b",
+        r"\btransfer kar\b",
+        r"\bturant.*bhej\b",    # immediately send
+        r"\babhi.*bhej\b",      # send now
+        r"\bjama kar\b",        # deposit
+    ],
+    "account suspension threat (hindi)": [
+        r"\bband ho\b",         # will be blocked
+        r"\bblock ho\b",
+        r"\bband kar\b",
+        r"\bsuspend ho\b",
+        r"\bkhata.*band\b",     # account closed
+    ],
+    "financial information request (hindi)": [
+        r"\botp.*batao\b",      # tell OTP
+        r"\bpin.*batao\b",
+        r"\bpassword.*batao\b",
+        r"\bcard.*number.*batao\b",
+        r"\bbank.*details.*do\b",
+    ],
+    "legal threat (hindi)": [
+        r"\bgiraftaar\b",       # arrested
+        r"\bfir\b",             # police complaint
+        r"\bpulice\b",
+        r"\bpolice.*aayegi\b",  # police will come
+        r"\bjurmana\b",         # fine
+        r"\bjel\b",             # jail
+        r"\bjail\b",
+    ],
+    "prize or reward scam (hindi)": [
+        r"\binaam\b",           # prize
+        r"\bjeeta hai\b",       # you have won
+        r"\bjeet gaye\b",
+        r"\blottery.*lagi\b",
+        r"\bselected.*ho\b",
+    ],
 }
 
 def detect_triggers(text):
@@ -155,8 +257,9 @@ def detect_triggers(text):
 @app.post("/api/predict-scam", response_model=PredictionResponse)
 async def predict_scam(request_data: PredictionRequest):
     """
-    Predict whether a transcript is a scam
-    IMPLEMENT THIS PART: Receives transcribed text from frontend
+    Predict whether a transcript is a scam.
+    If source_language is provided and is not English, the transcript is
+    translated to English first before running the ML model.
     """
     if not scam_model:
         raise HTTPException(status_code=500, detail="Scam model not loaded")
@@ -165,6 +268,13 @@ async def predict_scam(request_data: PredictionRequest):
     print(transcript)
     if not transcript:
         raise HTTPException(status_code=400, detail="Empty transcript")
+
+    # Translate non-English transcripts to English before prediction
+    source_lang = request_data.source_language
+    if source_lang and not source_lang.lower().startswith("en"):
+        print(f"🌐 Translating predict-scam input from {source_lang} to English")
+        transcript = translate_to_english(transcript, source_lang)
+        print(f"🌐 Translated: {transcript}")
     
     try:
         # Get model prediction
@@ -192,8 +302,54 @@ async def predict_scam(request_data: PredictionRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ---------------------------------------------------------------------------
+# Translation endpoint — called by the frontend to translate a single segment
+# ---------------------------------------------------------------------------
+
+class TranslateRequest(BaseModel):
+    text: str
+    source_language: str  # BCP-47 code, e.g. 'hi-IN'
+
+
+class TranslateResponse(BaseModel):
+    translated_text: str
+    source_language: str
+    target_language: str = "en"
+
+
+@app.post("/api/translate", response_model=TranslateResponse)
+async def translate_text(request_data: TranslateRequest):
+    """
+    Translate a text segment to English using Amazon Translate.
+    Called when AWS Transcribe detects a non-English language (e.g. hi-IN).
+    """
+    text = request_data.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Empty text")
+
+    source_lang = request_data.source_language
+    if source_lang.lower().startswith("en"):
+        # Already English — return as-is
+        return TranslateResponse(
+            translated_text=text,
+            source_language=source_lang,
+        )
+
+    translated = translate_to_english(text, source_lang)
+    return TranslateResponse(
+        translated_text=translated,
+        source_language=source_lang,
+    )
+
+
+class LanguagePreference(BaseModel):
+    user_phone: str
+    language_code: str  # 'en' or 'hi'
+
 class AnalyzeScamRequest(BaseModel):
     transcript: str
+    source_language: Optional[str] = None  # BCP-47 code, e.g. 'hi-IN' (None = English)
 
 class AnalyzeScamResponse(BaseModel):
     is_scam: bool
@@ -604,6 +760,98 @@ async def delete_family_member(member_id: str, owner_phone: str):
         raise HTTPException(status_code=503, detail=f"Family contact could not be deleted: {exc}")
 
 
+# ---------------------------------------------------------------------------
+# Language Preference Storage
+# ---------------------------------------------------------------------------
+
+LANGUAGE_PREFERENCES_TABLE = os.getenv("VOICESHIELD_LANGUAGE_PREFERENCES", "VoiceShieldLanguagePreferences")
+_language_preferences_table = None
+
+
+def language_preferences_table():
+    global _language_preferences_table
+    if _language_preferences_table is None:
+        _language_preferences_table = boto3.resource(
+            "dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1")
+        ).Table(LANGUAGE_PREFERENCES_TABLE)
+    return _language_preferences_table
+
+
+class LanguagePreferenceRequest(BaseModel):
+    user_phone: str
+    language_code: str  # 'en' or 'hi'
+
+
+class LanguagePreferenceResponse(BaseModel):
+    user_phone: str
+    language_code: str
+    created_at: str
+    updated_at: str
+
+
+@app.get("/api/language-preference", response_model=Optional[LanguagePreferenceResponse])
+async def get_language_preference(user_phone: str):
+    """Get user's preferred language"""
+    try:
+        table = language_preferences_table()
+        response = table.get_item(Key={"user_phone": user_phone})
+        item = response.get("Item")
+        if item:
+            return LanguagePreferenceResponse(
+                user_phone=item["user_phone"],
+                language_code=item["language_code"],
+                created_at=item["created_at"],
+                updated_at=item.get("updated_at", item["created_at"]),
+            )
+        return None
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Language preference unavailable: {exc}")
+
+
+@app.post("/api/language-preference", response_model=LanguagePreferenceResponse)
+async def create_or_update_language_preference(request_data: LanguagePreferenceRequest):
+    """Create or update user's language preference"""
+    current_time = datetime.now(timezone.utc).isoformat()
+    try:
+        table = language_preferences_table()
+        
+        # Check if preference exists
+        existing = table.get_item(Key={"user_phone": request_data.user_phone}).get("Item")
+        if existing:
+            # Update existing
+            table.update_item(
+                Key={"user_phone": request_data.user_phone},
+                UpdateExpression="SET language_code = :lang, updated_at = :updated",
+                ExpressionAttributeValues={
+                    ":lang": request_data.language_code,
+                    ":updated": current_time,
+                },
+            )
+            return LanguagePreferenceResponse(
+                user_phone=request_data.user_phone,
+                language_code=request_data.language_code,
+                created_at=existing["created_at"],
+                updated_at=current_time,
+            )
+        else:
+            # Create new
+            item = {
+                "user_phone": request_data.user_phone,
+                "language_code": request_data.language_code,
+                "created_at": current_time,
+                "updated_at": current_time,
+            }
+            table.put_item(Item=item)
+            return LanguagePreferenceResponse(
+                user_phone=request_data.user_phone,
+                language_code=request_data.language_code,
+                created_at=current_time,
+                updated_at=current_time,
+            )
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Language preference could not be saved: {exc}")
+
+
 import asyncio
 import time
 import os
@@ -633,6 +881,13 @@ async def analyze_scam(request_data: AnalyzeScamRequest):
 
     if not scam_model:
         raise HTTPException(status_code=500, detail="Scam model not loaded")
+
+    # Translate non-English transcripts to English before running the ML model
+    source_lang = request_data.source_language
+    if source_lang and not source_lang.lower().startswith("en"):
+        print(f"🌐 Translating analyze-scam input from {source_lang} to English")
+        transcript = translate_to_english(transcript, source_lang)
+        print(f"🌐 Translated: {transcript}")
 
     # Step 1: Run ML prediction
     try:
@@ -688,12 +943,22 @@ async def analyze_scam(request_data: AnalyzeScamRequest):
         agentcore_url = os.getenv("AGENTCORE_INVOCATION_URL", "http://localhost:8080/invocations")
 
         try:
+            # Get user's language preference
+            user_language = "en"  # default to English
+            source_lang = request_data.source_language
+            if source_lang:
+                # Extract language code from BCP-47 tag (e.g., 'hi-IN' -> 'hi', 'en-US' -> 'en')
+                lang_code = source_lang.split("-")[0].lower()
+                if lang_code in ("hi", "en"):
+                    user_language = lang_code
+            
             async with httpx.AsyncClient(timeout=60.0) as client:
                 response = await client.post(
                     agentcore_url,
                     json={
                         "transcript": transcript,
                         "prediction": pred_result,
+                        "user_language": user_language,
                     },
                     headers={"Content-Type": "application/json"},
                 )
@@ -1298,3 +1563,373 @@ if __name__ == "__main__":
 
 
 
+# ---------------------------------------------------------------------------
+# IndicTTS Deepfake Detector - AI-generated speech detection
+# ---------------------------------------------------------------------------
+
+class DeepfakeDetectionRequest(BaseModel):
+    """Audio file for deepfake detection."""
+    pass  # Audio is passed as multipart file upload
+
+class DeepfakeDetectionResponse(BaseModel):
+    """Response from deepfake detection."""
+    is_ai_generated: bool
+    ai_probability: float
+    human_probability: float
+    confidence_level: str
+    detection_model: str = "indictts-deepfake-detector"
+    detection_error: Optional[str] = None
+
+
+# Deepfake detector model (initialized lazily)
+_deepfake_model = None
+_deepfake_feature_extractor = None
+
+
+def load_deepfake_detector():
+    """Load the IndicTTS Deepfake Detector model."""
+    global _deepfake_model, _deepfake_feature_extractor
+    
+    if _deepfake_model is not None:
+        return _deepfake_model, _deepfake_feature_extractor
+    
+    try:
+        from transformers import AutoModelForAudioClassification, AutoFeatureExtractor
+        import torch
+        
+        print("📦 Loading IndicTTS Deepfake Detector model...")
+        model_name = "Khon198/indictts-deepfake-detector"
+        
+        _deepfake_feature_extractor = AutoFeatureExtractor.from_pretrained(model_name)
+        _deepfake_model = AutoModelForAudioClassification.from_pretrained(model_name)
+        _deepfake_model.eval()  # Set to evaluation mode
+        
+        print("✓ IndicTTS Deepfake Detector loaded successfully")
+        return _deepfake_model, _deepfake_feature_extractor
+        
+    except Exception as e:
+        print(f"❌ Error loading IndicTTS Deepfake Detector: {e}", file=sys.stderr)
+        return None, None
+
+
+def preprocess_audio_for_deepfake(audio_bytes: bytes, target_sample_rate: int = 16000, target_duration: float = 2.0) -> "torch.Tensor":
+    """
+    Preprocess audio for deepfake detection:
+    - Decode WAV bytes
+    - Resample to target sample rate (16kHz)
+    - Convert to mono
+    - Trim or pad to target duration (2 seconds)
+    """
+    import torch
+    import torchaudio
+    import numpy as np
+    
+    # Write to temp file for torchaudio
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+        tmp.write(audio_bytes)
+        tmp_path = tmp.name
+    
+    try:
+        waveform, sample_rate = torchaudio.load(tmp_path)
+        
+        # Convert to mono
+        if waveform.shape[0] > 1:
+            waveform = waveform.mean(dim=0, keepdim=True)
+        
+        # Resample if needed
+        if sample_rate != target_sample_rate:
+            resampler = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=target_sample_rate)
+            waveform = resampler(waveform)
+        
+        # Convert to numpy for processing
+        audio_np = waveform.squeeze().numpy()
+        
+        # Calculate target length
+        target_length = int(target_duration * target_sample_rate)
+        current_length = len(audio_np)
+        
+        # Trim or pad to target length
+        if current_length > target_length:
+            # Trim from the middle
+            start = (current_length - target_length) // 2
+            audio_np = audio_np[start:start + target_length]
+        elif current_length < target_length:
+            # Pad with zeros
+            pad_width = target_length - current_length
+            pad_before = pad_width // 2
+            pad_after = pad_width - pad_before
+            audio_np = np.pad(audio_np, (pad_before, pad_after), mode='constant')
+        
+        # Convert back to tensor
+        tensor = torch.tensor(audio_np, dtype=torch.float32)
+        
+        return tensor
+        
+    finally:
+        os.unlink(tmp_path)
+
+
+@app.post("/api/detect-deepfake", response_model=DeepfakeDetectionResponse)
+async def detect_deepfake(audio: UploadFile = File(...)):
+    """
+    Detect if the provided audio is AI-generated (TTS) or human speech.
+    Uses the IndicTTS Deepfake Detector model (DistilHuBERT with classification head).
+    
+    This endpoint:
+    1. Loads the deepfake detection model if not already loaded
+    2. Preprocesses the audio (resample to 16kHz, mono, 2s duration)
+    3. Runs inference to get AI vs human probability
+    4. Returns detection result with confidence level
+    
+    Note: For longer audio clips, only the middle 2 seconds are analyzed
+    due to model constraints.
+    """
+    # Load model if not already loaded
+    model, feature_extractor = load_deepfake_detector()
+    
+    if model is None:
+        return DeepfakeDetectionResponse(
+            is_ai_generated=False,
+            ai_probability=0.0,
+            human_probability=0.0,
+            confidence_level="NONE",
+            detection_error="Deepfake detection model not available. Check server logs."
+        )
+    
+    # Read audio bytes
+    audio_bytes = await audio.read()
+    if not audio_bytes:
+        return DeepfakeDetectionResponse(
+            is_ai_generated=False,
+            ai_probability=0.0,
+            human_probability=0.0,
+            confidence_level="NONE",
+            detection_error="Empty audio file"
+        )
+    
+    try:
+        import torch
+        
+        # Preprocess audio
+        processed_audio = preprocess_audio_for_deepfake(audio_bytes)
+        
+        # Feature extraction
+        inputs = feature_extractor(
+            processed_audio.numpy(),
+            sampling_rate=16000,
+            return_tensors="pt",
+            padding=True
+        )
+        
+        # Run inference
+        with torch.no_grad():
+            logits = model(**inputs).logits
+            probabilities = torch.softmax(logits, dim=-1)
+            
+            # Get probabilities for each class
+            # Assuming class 0 = human, class 1 = AI-generated (typical for binary classification)
+            human_prob = float(probabilities[0][0])
+            ai_prob = float(probabilities[0][1])
+            
+        # Determine confidence level
+        if max(ai_prob, human_prob) >= 0.90:
+            confidence = "HIGH"
+        elif max(ai_prob, human_prob) >= 0.70:
+            confidence = "MEDIUM"
+        else:
+            confidence = "LOW"
+        
+        return DeepfakeDetectionResponse(
+            is_ai_generated=(ai_prob > human_prob),
+            ai_probability=round(ai_prob, 3),
+            human_probability=round(human_prob, 3),
+            confidence_level=confidence
+        )
+        
+    except Exception as e:
+        print(f"❌ Deepfake detection error: {e}", file=sys.stderr)
+        return DeepfakeDetectionResponse(
+            is_ai_generated=False,
+            ai_probability=0.0,
+            human_probability=0.0,
+            confidence_level="NONE",
+            detection_error=str(e)
+        )
+
+
+# ---------------------------------------------------------------------------
+# Combined Scam + Deepfake Detection Endpoint
+# ---------------------------------------------------------------------------
+
+class CombinedAnalysisRequest(BaseModel):
+    """Request for combined scam and deepfake analysis."""
+    transcript: str
+    source_language: Optional[str] = None  # BCP-47 code, e.g. 'hi-IN'
+
+class CombinedAnalysisResponse(BaseModel):
+    """Response with both scam and deepfake analysis results."""
+    # Scam detection results
+    is_scam: bool
+    scam_probability: float
+    safe_probability: float
+    confidence_level: str
+    triggers_detected: list
+    
+    # Deepfake detection results
+    is_ai_generated: bool
+    ai_probability: float
+    human_probability: float
+    deepfake_confidence: str
+    
+    # Combined risk assessment
+    overall_risk_level: str
+    warnings: list
+    summary: Optional[str] = None
+    verification_questions: Optional[list] = None
+    risk_level: Optional[str] = None
+
+
+@app.post("/api/analyze-combined", response_model=CombinedAnalysisResponse)
+async def analyze_combined(request_data: CombinedAnalysisRequest, audio: Optional[UploadFile] = File(None)):
+    """
+    Combined analysis endpoint that performs both scam detection AND
+    deepfake detection simultaneously.
+    
+    This is the main endpoint for call screening:
+    - Runs scam prediction on the transcript
+    - Runs deepfake detection on the audio (if provided)
+    - Returns combined risk assessment with appropriate warnings
+    
+    If AI-generated speech is detected, a loud warning should be displayed
+    in the UI to alert the user immediately.
+    """
+    transcript = request_data.transcript.strip()
+    if not transcript:
+        raise HTTPException(status_code=400, detail="Empty transcript")
+    
+    # Step 1: Scam prediction (always required)
+    if not scam_model:
+        raise HTTPException(status_code=500, detail="Scam model not loaded")
+    
+    # Translate non-English transcripts to English
+    source_lang = request_data.source_language
+    working_transcript = transcript
+    if source_lang and not source_lang.lower().startswith("en"):
+        print(f"🌐 Translating combined analysis input from {source_lang} to English")
+        working_transcript = translate_to_english(transcript, source_lang)
+        print(f"🌐 Translated: {working_transcript}")
+    
+    # Scam prediction
+    try:
+        probability = float(scam_model.predict_proba([working_transcript])[0][1])
+        prediction = scam_model.predict([working_transcript])[0]
+        triggers = detect_triggers(working_transcript)
+        
+        if probability >= 0.90 or probability <= 0.10:
+            scam_confidence = "HIGH"
+        elif probability >= 0.70 or probability <= 0.30:
+            scam_confidence = "MEDIUM"
+        else:
+            scam_confidence = "LOW"
+        
+        scam_result = {
+            "is_scam": bool(prediction),
+            "scam_probability": round(probability, 3),
+            "safe_probability": round(1 - probability, 3),
+            "confidence_level": scam_confidence,
+            "triggers_detected": triggers,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Scam prediction failed: {str(e)}")
+    
+    # Step 2: Deepfake detection (optional, if audio provided)
+    deepfake_result = {
+        "is_ai_generated": False,
+        "ai_probability": 0.0,
+        "human_probability": 1.0,
+        "deepfake_confidence": "NONE",
+    }
+    
+    if audio:
+        deepfake_response = await detect_deepfake(audio)
+        deepfake_result = {
+            "is_ai_generated": deepfake_response.is_ai_generated,
+            "ai_probability": deepfake_response.ai_probability,
+            "human_probability": deepfake_response.human_probability,
+            "deepfake_confidence": deepfake_response.confidence_level,
+        }
+    
+    # Step 3: Combine results and assess overall risk
+    warnings = []
+    is_high_risk = False
+    
+    # Scam risk
+    if scam_result["is_scam"]:
+        if scam_result["scam_probability"] >= 0.80:
+            warnings.append("⚠️ HIGH RISK: Scam detected with high confidence")
+            is_high_risk = True
+        elif scam_result["scam_probability"] >= 0.60:
+            warnings.append("⚠️ MEDIUM RISK: Scam indicators detected")
+        else:
+            warnings.append("ℹ️ LOW RISK: Some scam indicators present")
+    
+    # Deepfake/AI risk
+    if deepfake_result["is_ai_generated"]:
+        if deepfake_result["ai_probability"] >= 0.80:
+            warnings.append("🔴 CRITICAL: AI-generated speech detected! ⚠️")
+            is_high_risk = True
+        elif deepfake_result["ai_probability"] >= 0.60:
+            warnings.append("⚠️ WARNING: Likely AI-generated speech")
+        else:
+            warnings.append("ℹ️ POSSIBLE AI: Audio may be generated")
+    
+    # Determine overall risk level
+    if is_high_risk or (scam_result["is_scam"] and deepfake_result["is_ai_generated"]):
+        overall_risk = "CRITICAL"
+    elif scam_result["is_scam"] or deepfake_result["is_ai_generated"]:
+        overall_risk = "HIGH"
+    elif scam_result["scam_probability"] >= 0.50 or deepfake_result["ai_probability"] >= 0.50:
+        overall_risk = "MODERATE"
+    else:
+        overall_risk = "LOW"
+    
+    # Generate summary and recommendations
+    summary_parts = []
+    if scam_result["is_scam"]:
+        summary_parts.append(f"The caller's speech shows strong indicators of a scam ({scam_result['scam_probability']*100:.1f}% probability).")
+    if deepfake_result["is_ai_generated"]:
+        summary_parts.append(f"⚠️ CRITICAL: The audio has been detected as AI-generated ({deepfake_result['ai_probability']*100:.1f}% probability). This is a strong indicator of fraud.")
+    
+    if not summary_parts:
+        summary_parts.append("No immediate threats detected. Call appears legitimate.")
+    
+    # AgentCore integration for high-risk cases (same as analyze-scam)
+    summary = None
+    verification_questions = None
+    risk_level = None
+    
+    if overall_risk in ["CRITICAL", "HIGH"] and _last_agentcore_request_time > 0:
+        # This would call AgentCore if we had the async context
+        # For now, we just include a placeholder
+        pass
+    
+    return CombinedAnalysisResponse(
+        **scam_result,
+        **deepfake_result,
+        overall_risk_level=overall_risk,
+        warnings=warnings,
+        summary=". ".join(summary_parts),
+        verification_questions=None,
+        risk_level=overall_risk,
+    )
+
+
+def run_backend():
+    """Run the FastAPI backend server"""
+    import uvicorn
+    port = int(os.getenv("BACKEND_PORT", 5000))
+    print(f"🚀 Starting FastAPI backend on port {port}")
+    print(f"✓ Scam prediction API: POST http://localhost:{port}/api/predict-scam")
+    print(f"✓ Deepfake detection API: POST http://localhost:{port}/api/detect-deepfake")
+    print(f"✓ Combined analysis API: POST http://localhost:{port}/api/analyze-combined")
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")

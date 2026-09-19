@@ -21,7 +21,8 @@
       "Resource": [
         "arn:aws:dynamodb:us-east-1:736307751112:table/VoiceShieldVoiceShares",
         "arn:aws:dynamodb:us-east-1:736307751112:table/VoiceShieldInbox",
-        "arn:aws:dynamodb:us-east-1:736307751112:table/VoiceShieldPushSubscriptions"
+        "arn:aws:dynamodb:us-east-1:736307751112:table/VoiceShieldPushSubscriptions",
+        "arn:aws:dynamodb:us-east-1:736307751112:table/VoiceShieldLanguagePreferences"
       ]
     }
   ]

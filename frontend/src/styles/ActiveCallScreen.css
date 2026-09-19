@@ -1019,6 +1019,36 @@
    Shown below the mic indicator during a call.
    ============================================================ */
 
+/* ── Language detection badge ─────────────────────────────
+   Shown below the mic indicator when Transcribe identifies
+   the caller's language (English or Hindi).
+   ============================================================ */
+
+.language-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.3rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 20px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  transition: background 0.3s, color 0.3s;
+}
+
+.lang-english {
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  color: rgba(147, 197, 253, 0.85);
+}
+
+.lang-hindi {
+  background: rgba(249, 115, 22, 0.1);
+  border: 1px solid rgba(249, 115, 22, 0.3);
+  color: rgba(253, 186, 116, 0.9);
+}
+
 .privacy-routing-badge {
   display: flex;
   align-items: center;

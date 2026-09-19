@@ -198,8 +198,13 @@ const ContactCard: React.FC<ContactCardProps> = ({
       </div>
 
       <div className="contact-actions">
-        <button className="btn-icon" title="Toggle emergency contact" onClick={onToggleEmergency} aria-label={`Toggle emergency contact for ${contact.name}`}>
-          {contact.isEmergencyContact ? 'Emergency' : 'Set emergency'}
+        <button
+          className={`btn-icon emergency ${contact.isEmergencyContact ? 'active' : ''}`}
+          title="Toggle emergency contact"
+          onClick={onToggleEmergency}
+          aria-label={`Toggle emergency contact for ${contact.name}`}
+        >
+          {contact.isEmergencyContact ? '⚡ Emergency' : '🛡️ Set emergency'}
         </button>
         <button className="btn-icon edit" title="Edit" onClick={onEdit} aria-label={`Edit ${contact.name}`}>
           ✏️

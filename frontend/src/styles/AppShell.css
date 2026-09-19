@@ -1,5 +1,5 @@
 /* ============================================================
-   AppShell — Two-tab layout for VoiceShield
+   AppShell — Clean, professional layout inspired by One Medical
    ============================================================ */
 
 * {
@@ -8,11 +8,12 @@
 
 .app-shell {
   min-height: 100vh;
-  background: #0a0a0a;
-  color: #ffffff;
-  font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: #f8fafc;
+  color: #0f172a;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 /* ── Top Bar ─────────────────────────────────────────────── */
@@ -20,74 +21,138 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.85rem 1.5rem;
-  background: #111111;
-  border-bottom: 1px solid #1f1f1f;
+  padding: 1.25rem 2rem;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
   position: sticky;
   top: 0;
   z-index: 100;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
 }
 
 .app-logo {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.75rem;
+  animation: slideInUp 0.4s cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 .app-logo-icon {
-  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  color: #3b82f6;
+  transition: transform 0.3s ease;
+}
+
+.app-logo-icon:hover {
+  transform: scale(1.05);
+}
+
+.app-logo-icon svg {
+  width: 100%;
+  height: 100%;
 }
 
 .app-logo-text {
-  font-size: 1.2rem;
+  font-size: 1.5rem;
   font-weight: 700;
-  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  letter-spacing: 0.5px;
+  color: #0f172a;
+  letter-spacing: -0.03em;
+}
+
+.app-status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.5rem 1rem;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 24px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1e40af;
+  animation: fadeIn 0.6s ease-out;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  background: #3b82f6;
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.status-text {
+  letter-spacing: 0.01em;
 }
 
 /* ── Tab Bar ─────────────────────────────────────────────── */
 .app-tabbar {
   display: flex;
-  background: #111111;
-  border-bottom: 1px solid #1f1f1f;
+  background: #ffffff;
+  border-bottom: 2px solid #f1f5f9;
+  position: relative;
+  padding: 0 1.5rem;
+  gap: 0.5rem;
 }
 
 .tab-btn {
   flex: 1;
-  padding: 0.85rem 1rem;
+  max-width: 200px;
+  padding: 1rem 1.5rem;
   background: transparent;
   border: none;
-  border-bottom: 2px solid transparent;
-  color: rgba(255, 255, 255, 0.45);
-  font-size: 0.9rem;
-  font-weight: 500;
+  border-bottom: 3px solid transparent;
+  color: #64748b;
+  font-size: 0.9375rem;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.01em;
   display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 0.45rem;
-  border-radius: 0;
+  gap: 0.625rem;
+  position: relative;
 }
 
 .tab-btn:hover {
-  color: rgba(255, 255, 255, 0.75);
-  background: rgba(255, 255, 255, 0.04);
-  border-color: transparent;
+  color: #334155;
+  background: #f8fafc;
 }
 
 .tab-btn.active {
-  color: #4ade80;
-  border-bottom-color: #4ade80;
-  background: rgba(74, 222, 128, 0.06);
+  color: #3b82f6;
+  border-bottom-color: #3b82f6;
 }
 
 .tab-icon {
-  font-size: 1.05rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  transition: transform 0.2s ease;
+}
+
+.tab-btn:hover .tab-icon {
+  transform: translateY(-1px);
+}
+
+.tab-btn.active .tab-icon {
+  color: #3b82f6;
+}
+
+.tab-label {
+  font-size: 0.9375rem;
+}
+
+.tab-indicator {
+  display: none;
 }
 
 /* ── Tab Content ─────────────────────────────────────────── */
@@ -96,4 +161,40 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
+  background: #f8fafc;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .app-topbar {
+    padding: 1rem 1.25rem;
+  }
+  
+  .app-logo-text {
+    font-size: 1.25rem;
+  }
+  
+  .app-status-indicator {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8125rem;
+  }
+  
+  .status-text {
+    display: none;
+  }
+  
+  .app-tabbar {
+    padding: 0 0.5rem;
+  }
+  
+  .tab-btn {
+    padding: 0.875rem 1rem;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+  }
+  
+  .tab-label {
+    font-size: 0.875rem;
+  }
 }

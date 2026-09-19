@@ -8,9 +8,13 @@
 import { CallerInfo } from './CallerPicker'
 import FreezeOverlay from './FreezeOverlay'
 import VoiceMismatchOverlay from './VoiceMismatchOverlay'
+import AIWarningOverlay from './AIWarningOverlay'
 import useTranscription from '../hooks/useTranscription'
 import useVADDiarization, { EnrolledSpeaker, SegmentResult } from '../hooks/useVADDiarization'
 import { ScamAnalysisResult } from '../types'
+import AudioProcessor from '../services/AudioProcessor'
+import AudioQuantizer from '../services/AudioQuantizer'
+import AudioResampler from '../services/AudioResampler'
 import '../styles/ActiveCallScreen.css'
 import { apiUrl } from '../config/api'
 import { useVoiceMatch } from '../hooks/useVoiceMatch'
@@ -20,6 +24,8 @@ interface ActiveCallScreenProps {
   onEndCall: () => void
   /** Owner's phone number — used to load their self-embedding from localStorage */
   ownerPhone?: string
+  /** User's preferred language for AI responses: 'en' or 'hi' */
+  languageCode?: string
 }
 
 const SCAM_THRESHOLD = 0.8
@@ -60,12 +66,35 @@ function loadSelfEmbedding(ownerPhone: string | undefined): number[] | null {
   }
 }
 
+/** Encode Float32Array samples as WAV blob */
+function encodeWav(samples: Float32Array, sampleRate: number): Blob {
+  const dataSize = samples.length * 2
+  const buf = new ArrayBuffer(44 + dataSize)
+  const v = new DataView(buf)
+  const ws = (off: number, s: string) => {
+    for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i))
+  }
+  ws(0, 'RIFF'); v.setUint32(4, 36 + dataSize, true); ws(8, 'WAVE')
+  ws(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true)
+  v.setUint32(24, sampleRate, true); v.setUint32(28, sampleRate * 2, true)
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true)
+  ws(36, 'data'); v.setUint32(40, dataSize, true)
+  let off = 44
+  for (let i = 0; i < samples.length; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]))
+    v.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true)
+    off += 2
+  }
+  return new Blob([buf], { type: 'audio/wav' })
+}
+
 /* ── Component ───────────────────────────────────────────────────────────── */
 
 export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
   caller,
   onEndCall,
   ownerPhone,
+  languageCode = 'en',  // default to English
 }) => {
 
   /* ── Call timer ───────────────────────────────────────────────────────── */
@@ -79,6 +108,7 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
   const [isMuted,   setIsMuted]   = useState(false)
   const [isSpeaker, setIsSpeaker] = useState(false)
   const [showFreeze, setShowFreeze] = useState(false)
+  const isRecordingRef = useRef(false)
 
   /* ── Voice verification state ─────────────────────────────────────────── */
   const [showMismatch, setShowMismatch] = useState(false)
@@ -88,6 +118,16 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
   const [scamProb,       setScamProb]       = useState(0)
   const [bedrockResult,  setBedrockResult]  = useState<ScamAnalysisResult | null>(null)
   const [bedrockLoading, setBedrockLoading] = useState(false)
+
+  /* ── Deepfake/AI detection state ──────────────────────────────────────── */
+  const [aiWarningData, setAiWarningData] = useState<null | {
+    is_ai_generated: boolean
+    ai_probability: number
+    human_probability: number
+    confidence_level: 'HIGH' | 'MEDIUM' | 'LOW' | 'NONE'
+  }>(null)
+  const [showAiWarning, setShowAiWarning] = useState(false)
+  const aiWarningTriggeredRef = useRef(false)
 
   const hasRealResultRef = useRef(false)
   const analyzingRef     = useRef(false)
@@ -133,18 +173,62 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
     stopRecording,
     isRecording,
     feedCallerAudio,
+    detectedLanguage,
   } = useTranscription({
-    languageCode: 'en-US',
     region: 'us-east-1',
+    // multiLanguage: true is the default — enables Hindi+English auto-detect
     // Use external audio feed when we have enrolled speakers to filter with.
     // Falls back to raw mic capture when no embeddings exist yet.
     externalAudio: enrolledSpeakers.length > 0,
+    userLanguage: languageCode,  // Pass user's preferred language for AI responses
   })
 
   /* ── VAD / Diarization ────────────────────────────────────────────────── */
-  const handleCallerAudio = useCallback((blob: Blob) => {
+  const handleCallerAudio = useCallback(async (blob: Blob) => {
+    // Debug: Log when caller audio is received
+    console.log('[ActiveCall] Caller audio received, blob size:', blob.size, 'type:', blob.type)
+    
+    // Run deepfake detection on caller audio (only once per call)
+    if (!aiWarningTriggeredRef.current && !callVerified) {
+      console.log('[ActiveCall] Running deepfake detection...')
+      aiWarningTriggeredRef.current = true
+      try {
+        const formData = new FormData()
+        formData.append('audio', blob, 'caller_audio.wav')
+        
+        const url = apiUrl('/api/detect-deepfake')
+        console.log('[ActiveCall] Calling deepfake endpoint:', url)
+
+        const res = await fetch(url, {
+          method: 'POST',
+          body: formData,
+        })
+
+        console.log('[ActiveCall] Deepfake response status:', res.status)
+        
+        if (res.ok) {
+          const data = await res.json()
+          console.log('[ActiveCall] Deepfake detection result:', data)
+          setAiWarningData(data)
+          if (data.is_ai_generated && data.confidence_level === 'HIGH') {
+            console.log('[ActiveCall] AI-generated speech detected with HIGH confidence!')
+            setShowAiWarning(true)
+          }
+        } else {
+          console.warn('[ActiveCall] Deepfake detection failed:', await res.text())
+        }
+      } catch (err) {
+        console.error('[ActiveCall] Deepfake detection error:', err)
+      }
+    } else {
+      console.log('[ActiveCall] Skipping deepfake detection:', {
+        alreadyTriggered: aiWarningTriggeredRef.current,
+        callVerified: callVerified
+      })
+    }
+
     feedCallerAudio(blob)
-  }, [feedCallerAudio])
+  }, [feedCallerAudio, callVerified])
 
   const {
     isRunning:    diarizationRunning,
@@ -170,6 +254,135 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
 
   /* ── Voice match (existing 5-second verification) ────────────────────── */
   const { voiceMatchState, voiceMatchResult } = useVoiceMatch(familyContact)
+
+  /* ── Deepfake detection audio processor ───────────────────────────────── */
+  // Separate audio processor for deepfake detection (captures all audio)
+  const deepfakeAudioProcessorRef = useRef<AudioProcessor | null>(null)
+  const deepfakeAudioChunksRef = useRef<Uint8Array[]>([])
+  const deepfakeAudioResolverRef = useRef<(() => void) | null>(null)
+
+  useEffect(() => {
+    // Only set up deepfake audio processor for unknown callers
+    // (known contacts will use diarization which provides caller-only audio)
+    if (caller.isUnknown) {
+      const setupDeepfakeProcessor = async () => {
+        try {
+          const processor = new AudioProcessor({
+            targetSampleRate: 16000,
+            chunkDurationMs: 100,
+            echoCancellation: true,
+            noiseSuppression: true,
+          })
+          await processor.initialize()
+          deepfakeAudioProcessorRef.current = processor
+
+          const inputRate = processor.getAudioContext()?.sampleRate || 44100
+          const resampler = new AudioResampler({
+            inputSampleRate: inputRate,
+            outputSampleRate: 16000,
+          })
+
+          processor.onAudioFrame((frame) => {
+            if (!isRecordingRef.current) return
+            try {
+              const resampled = resampler.resample(frame.data)
+              const quantized = AudioQuantizer.quantize(resampled)
+              const audioData = new Uint8Array(quantized.buffer)
+              
+              // Buffer chunks for deepfake detection
+              deepfakeAudioChunksRef.current.push(audioData)
+              if (deepfakeAudioResolverRef.current) {
+                deepfakeAudioResolverRef.current()
+                deepfakeAudioResolverRef.current = null
+              }
+            } catch (err) {
+              console.error('Deepfake audio processing error:', err)
+            }
+          })
+
+          processor.start()
+          console.log('[ActiveCall] Deepfake audio processor started for unknown caller')
+        } catch (err) {
+          console.error('[ActiveCall] Failed to start deepfake audio processor:', err)
+        }
+      }
+
+      setupDeepfakeProcessor()
+
+      return () => {
+        if (deepfakeAudioProcessorRef.current) {
+          deepfakeAudioProcessorRef.current.stop()
+          deepfakeAudioProcessorRef.current.cleanup()
+          deepfakeAudioProcessorRef.current = null
+        }
+      }
+    }
+  }, [caller.isUnknown])
+
+  /* ── Process deepfake audio chunks and run detection ──────────────────── */
+  useEffect(() => {
+    if (!caller.isUnknown) return  // Only for unknown callers
+
+    const processChunks = async () => {
+      if (!isRecordingRef.current || aiWarningTriggeredRef.current || callVerified) return
+
+      // Accumulate audio chunks for ~2 seconds
+      const chunks = deepfakeAudioChunksRef.current.splice(0)
+      if (chunks.length === 0) return
+
+      // Convert chunks to WAV blob
+      try {
+        const totalSamples = chunks.reduce((sum, c) => sum + c.length / 2, 0) // 16-bit = 2 bytes per sample
+        const samples = new Float32Array(totalSamples)
+        let offset = 0
+        for (const chunk of chunks) {
+          for (let i = 0; i < chunk.length; i += 2) {
+            const int16 = new DataView(chunk.buffer, chunk.byteOffset + i, 2).getInt16(0, true)
+            samples[offset++] = int16 / 32768.0
+          }
+        }
+
+        if (samples.length < 16000) return  // Need at least 1 second of audio
+
+        // Encode to WAV
+        const wavBlob = encodeWav(samples, 16000)
+        
+        // Run deepfake detection
+        aiWarningTriggeredRef.current = true
+        try {
+          const formData = new FormData()
+          formData.append('audio', wavBlob, 'caller_audio.wav')
+
+          const res = await fetch(apiUrl('/api/detect-deepfake'), {
+            method: 'POST',
+            body: formData,
+          })
+
+          console.log('[ActiveCall] Deepfake response status:', res.status)
+          
+          if (res.ok) {
+            const data = await res.json()
+            console.log('[ActiveCall] Deepfake detection result:', data)
+            setAiWarningData(data)
+            if (data.is_ai_generated && data.confidence_level === 'HIGH') {
+              console.log('[ActiveCall] AI-generated speech detected with HIGH confidence!')
+              setShowAiWarning(true)
+            }
+          } else {
+            console.warn('[ActiveCall] Deepfake detection failed:', await res.text())
+          }
+        } catch (err) {
+          console.error('[ActiveCall] Deepfake detection error:', err)
+        }
+      } catch (err) {
+        console.error('[ActiveCall] Audio chunk processing error:', err)
+      }
+    }
+
+    // Process chunks every 2 seconds
+    const intervalId = setInterval(processChunks, 2000)
+    return () => clearInterval(intervalId)
+  }, [caller.isUnknown, callVerified])
 
   /* ── Open mismatch overlay when voice check fails ────────────────────── */
   useEffect(() => {
@@ -198,6 +411,12 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
     // Always start Transcribe streaming
     startRecording().catch(console.error)
 
+    // Always start deepfake detection (runs on all audio)
+    aiWarningTriggeredRef.current = false
+    setShowAiWarning(false)
+    setAiWarningData(null)
+    isRecordingRef.current = true
+
     if (hasDiarization) {
       setPrivacyMode('active')
       startDiarization().catch((err) => {
@@ -206,23 +425,44 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
       })
     } else {
       setPrivacyMode('fallback')
+      // For unknown callers without diarization, we still run deepfake detection
+      // but we need to capture audio from somewhere
+      console.log('[ActiveCall] No enrolled speakers - diarization not running')
+      console.log('[ActiveCall] Deepfake detection will run when audio is available')
     }
 
     return () => {
       stopRecording()
       stopDiarization()
+      isRecordingRef.current = false
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Full transcript from caller-only segments ────────────────────────── */
+  // For display: show the original spoken text (Hindi or English as-is)
   const fullTranscript = useMemo(
     () => segments.map((s) => s.transcript).filter(Boolean).join(' ').trim(),
     [segments],
   )
 
+  // For scam detection: use the translated English text when available,
+  // otherwise fall back to the original (which is already English).
+  const fullTranscriptForScam = useMemo(
+    () =>
+      segments
+        .map((s) => s.translatedTranscript ?? s.transcript)
+        .filter(Boolean)
+        .join(' ')
+        .trim(),
+    [segments],
+  )
+
+  // The dominant detected language across all segments (last known value)
+  const isHindi = detectedLanguage?.startsWith('hi') ?? false
+
   /* ── Predict-scam polling (debounced 1 s) ─────────────────────────────── */
   useEffect(() => {
-    if (!fullTranscript) return
+    if (!fullTranscriptForScam) return
     if (callVerified) return
 
     const timer = setTimeout(async () => {
@@ -230,7 +470,10 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
         const res = await fetch(apiUrl('/api/predict-scam'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ transcript: fullTranscript }),
+          body: JSON.stringify({
+            transcript: fullTranscriptForScam,
+            source_language: detectedLanguage ?? undefined,
+          }),
         })
         if (!res.ok) return
         const data = await res.json()
@@ -248,7 +491,11 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
           fetch(apiUrl('/api/analyze-scam'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ transcript: fullTranscript }),
+            body: JSON.stringify({
+              transcript: fullTranscriptForScam,
+              source_language: detectedLanguage ?? undefined,
+              user_language: languageCode,
+            }),
           })
             .then((r) => {
               if (!r.ok) throw new Error(`HTTP ${r.status}`)
@@ -273,7 +520,7 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
       } catch { /* ignore network errors */ }
     }, 1000)
     return () => clearTimeout(timer)
-  }, [fullTranscript, callVerified])
+  }, [fullTranscriptForScam, callVerified, detectedLanguage])
 
   /* ── End call ─────────────────────────────────────────────────────────── */
   const handleEndCall = useCallback(() => {
@@ -281,6 +528,9 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
     stopDiarization()
     hasRealResultRef.current = false
     analyzingRef.current = false
+    aiWarningTriggeredRef.current = false
+    setShowAiWarning(false)
+    setAiWarningData(null)
     onEndCall()
   }, [stopRecording, stopDiarization, onEndCall])
 
@@ -381,6 +631,16 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
               <span className="diarization-analyzing-dot" title="Analysing speakers…" />
             )}
           </div>
+
+          {/* ── Detected language badge ───────────────────────────────── */}
+          {detectedLanguage && (
+            <div
+              className={`language-badge ${isHindi ? 'lang-hindi' : 'lang-english'}`}
+              aria-label={`Detected language: ${isHindi ? 'Hindi' : 'English'}`}
+            >
+              {isHindi ? '🇮🇳 हिंदी → EN' : '🇺🇸 English'}
+            </div>
+          )}
 
           {/* ── Privacy routing badge ─────────────────────────────────── */}
           {privacyMode !== 'off' && (
@@ -581,6 +841,22 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
           matchResult={voiceMatchResult}
           onVerified={handleVerified}
           onEndCall={handleEndCall}
+        />
+      )}
+
+      {/* AI-generated speech warning overlay */}
+      {showAiWarning && aiWarningData && (
+        <AIWarningOverlay
+          data={{
+            is_ai_generated: aiWarningData.is_ai_generated,
+            ai_probability: aiWarningData.ai_probability,
+            human_probability: aiWarningData.human_probability,
+            confidence_level: aiWarningData.confidence_level,
+          }}
+          onAcknowledge={() => {
+            setShowAiWarning(false)
+            // Continue monitoring but don't show warning again
+          }}
         />
       )}
 

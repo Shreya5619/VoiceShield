@@ -1,5 +1,6 @@
-﻿import React, { useState, useCallback, useMemo } from 'react'
+﻿import React, { useState, useCallback, useMemo, useEffect } from 'react'
 import useFamilyContacts, { FamilyContact } from '../hooks/useFamilyContacts'
+import { apiUrl } from '../config/api'
 import '../styles/CallerPicker.css'
 
 export interface CallerInfo {
@@ -15,6 +16,8 @@ interface CallerPickerProps {
   ownerPhone: string
   onStartCall: (caller: CallerInfo) => void
   onGoToContacts: () => void
+  languageCode: string  // 'en' or 'hi'
+  onLanguageChange: (lang: string) => void
 }
 
 /** Generate a random 10-digit US-style phone number */
@@ -25,7 +28,7 @@ function randomPhone(): string {
   return `(${area}) ${mid}-${last}`
 }
 
-export const CallerPicker: React.FC<CallerPickerProps> = ({ ownerPhone, onStartCall, onGoToContacts }) => {
+export const CallerPicker: React.FC<CallerPickerProps> = ({ ownerPhone, onStartCall, onGoToContacts, languageCode, onLanguageChange }) => {
   const { contacts } = useFamilyContacts(ownerPhone)
 
   // selectedId: a contact id string, or 'unknown', or null
@@ -33,6 +36,9 @@ export const CallerPicker: React.FC<CallerPickerProps> = ({ ownerPhone, onStartC
 
   // We generate the unknown number once per selection so it stays stable
   const [unknownPhone] = useState<string>(() => randomPhone())
+  
+  // Local language state for the dropdown
+  const [localLanguageCode, setLocalLanguageCode] = useState(languageCode)
 
   const selectedCaller = useMemo<CallerInfo | null>(() => {
     if (!selectedId) return null
@@ -52,9 +58,44 @@ export const CallerPicker: React.FC<CallerPickerProps> = ({ ownerPhone, onStartC
     if (selectedCaller) onStartCall(selectedCaller)
   }, [selectedCaller, onStartCall])
 
+  // Sync local language state with parent prop on change
+  useEffect(() => {
+    setLocalLanguageCode(languageCode)
+  }, [languageCode])
+  
+  // Handle language change and save to backend
+  const handleLanguageChange = useCallback(async (lang: string) => {
+    setLocalLanguageCode(lang)
+    try {
+      await fetch(apiUrl('/api/language-preference'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_phone: ownerPhone, language_code: lang }),
+      })
+    } catch (err) {
+      console.error('Failed to save language preference:', err)
+      // Revert on error
+      setLocalLanguageCode(languageCode)
+    }
+  }, [ownerPhone, languageCode])
+
   return (
     <div className="caller-picker">
-      {/* â”€â”€ Saved contacts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* Language preference selector */}
+      <div className="language-preference-selector">
+        <label htmlFor="language-select">Assistant Response Language:</label>
+        <select
+          id="language-select"
+          value={localLanguageCode}
+          onChange={(e) => handleLanguageChange(e.target.value)}
+          className="language-select"
+        >
+          <option value="en">English</option>
+          <option value="hi">Hindi (हिंदी)</option>
+        </select>
+      </div>
+      
+      {/* Saved contacts */}
       {contacts.length > 0 ? (
         <>
           <p className="picker-title">Select Caller</p>
@@ -72,7 +113,7 @@ export const CallerPicker: React.FC<CallerPickerProps> = ({ ownerPhone, onStartC
                   {c.relation && <span className="picker-sub relation">{c.relation}</span>}
                   <p className="picker-sub">{c.phone}</p>
                 </div>
-                {selectedId === c.id && <span className="picker-check">âœ“</span>}
+                {selectedId === c.id && <span className="picker-check">✓</span>}
               </button>
             ))}
           </div>
@@ -87,28 +128,28 @@ export const CallerPicker: React.FC<CallerPickerProps> = ({ ownerPhone, onStartC
         </div>
       )}
 
-      {/* â”€â”€ Divider â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* Divider */}
       <div className="picker-divider">
         <span>or</span>
       </div>
 
-      {/* â”€â”€ Unknown caller option â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* Unknown caller option */}
       <div className="picker-grid">
         <button
           className={`picker-card ${selectedId === 'unknown' ? 'selected' : ''}`}
           onClick={() => handleSelect('unknown')}
           aria-pressed={selectedId === 'unknown'}
         >
-          <div className="picker-avatar unknown">â“</div>
+          <div className="picker-avatar unknown">✓</div>
           <div className="picker-info">
             <p className="picker-name">Unknown Caller</p>
             <p className="picker-sub">{unknownPhone}</p>
           </div>
-          {selectedId === 'unknown' && <span className="picker-check">âœ“</span>}
+          {selectedId === 'unknown' && <span className="picker-check">✓</span>}
         </button>
       </div>
 
-      {/* â”€â”€ Selected preview + simulate button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* Selected preview + simulate button */}
       {selectedCaller && (
         <>
           <div className="selected-preview">
@@ -116,7 +157,7 @@ export const CallerPicker: React.FC<CallerPickerProps> = ({ ownerPhone, onStartC
               className={`picker-avatar ${selectedCaller.isUnknown ? 'unknown' : ''}`}
               style={{ width: 40, height: 40, fontSize: '1rem' }}
             >
-              {selectedCaller.isUnknown ? 'â“' : selectedCaller.name.charAt(0)}
+              {selectedCaller.isUnknown ? '✓' : selectedCaller.name.charAt(0)}
             </div>
             <div>
               <p className="preview-label">Incoming call from</p>
@@ -135,4 +176,3 @@ export const CallerPicker: React.FC<CallerPickerProps> = ({ ownerPhone, onStartC
 }
 
 export default CallerPicker
-

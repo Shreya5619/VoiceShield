@@ -6,6 +6,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import {
   TranscribeStreamingClient,
   StartStreamTranscriptionCommand,
+  type StartStreamTranscriptionCommandInput,
 } from '@aws-sdk/client-transcribe-streaming'
 import { TranscriptionSegment, ConnectionState } from '../types'
 import AudioProcessor from '../services/AudioProcessor'
@@ -27,6 +28,17 @@ export interface UseTranscriptionConfig {
    * produced by useVADDiarization.
    */
   externalAudio?: boolean
+  /**
+   * When true, enables AWS Transcribe multi-language identification
+   * (en-US + hi-IN). The detected language is stored per segment and
+   * the hook surfaces the latest detected language via detectedLanguage.
+   * Mutually exclusive with a fixed languageCode.
+   */
+  multiLanguage?: boolean
+  /**
+   * User's preferred language for AI responses: 'en' or 'hi'
+   */
+  userLanguage?: string
 }
 
 export interface UseTranscriptionResult {
@@ -36,6 +48,8 @@ export interface UseTranscriptionResult {
   segments: TranscriptionSegment[]
   currentPartial: TranscriptionSegment | null
   error: Error | null
+  /** BCP-47 code of the last detected language, e.g. 'en-US' or 'hi-IN' */
+  detectedLanguage: string | null
   startRecording: () => Promise<void>
   stopRecording: () => void
   reset: () => void
@@ -54,6 +68,7 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
   const [segments, setSegments] = useState<TranscriptionSegment[]>([])
   const [currentPartial, setCurrentPartial] = useState<TranscriptionSegment | null>(null)
   const [error, setError] = useState<Error | null>(null)
+  const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null)
 
   const audioProcessorRef = useRef<AudioProcessor | null>(null)
   const resamplerRef = useRef<AudioResampler | null>(null)
@@ -78,6 +93,7 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
       // Get credentials
       const region = config.region || (import.meta as any).env.VITE_AWS_REGION || 'us-east-1'
       const languageCode = config.languageCode || (import.meta as any).env.VITE_AWS_LANGUAGE || 'en-US'
+      const useMultiLanguage = config.multiLanguage ?? true // default ON for Hindi+English
 
       const credentials = config.credentials || {
         accessKeyId:
@@ -154,9 +170,6 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
       })
       clientRef.current = client
 
-      setConnectionState(ConnectionState.Connected)
-      setIsTranscribing(true)
-
       // Audio stream async generator — reads from shared audioChunksRef
       const audioStream = async function* () {
         let frameCount = 0
@@ -183,14 +196,29 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
       }
 
       // Send to Transcribe
-      const command = new StartStreamTranscriptionCommand({
-        LanguageCode: languageCode,
-        MediaSampleRateHertz: 16000,
-        MediaEncoding: 'pcm',
-        AudioStream: audioStream(),
-      })
+      // When multiLanguage is enabled (default), use IdentifyLanguage so AWS
+      // automatically detects whether each segment is English or Hindi.
+      // NOTE: IdentifyLanguage and LanguageCode are mutually exclusive.
+      const transcribeParams: StartStreamTranscriptionCommandInput = useMultiLanguage
+        ? {
+            IdentifyLanguage: true,
+            LanguageOptions: 'en-US,hi-IN',
+            PreferredLanguage: 'en-US',
+            MediaSampleRateHertz: 16000,
+            MediaEncoding: 'pcm',
+            AudioStream: audioStream(),
+          }
+        : {
+            LanguageCode: languageCode as 'en-US',
+            MediaSampleRateHertz: 16000,
+            MediaEncoding: 'pcm',
+            AudioStream: audioStream(),
+          }
+      const command = new StartStreamTranscriptionCommand(transcribeParams)
 
       const response = await client.send(command, { abortSignal: abortController.signal })
+      setConnectionState(ConnectionState.Connected)
+      setIsTranscribing(true)
 
       // Process results
       if (response.TranscriptResultStream) {
@@ -204,10 +232,14 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
                 if (result.Alternatives && result.Alternatives.length > 0) {
                   const alt = result.Alternatives[0]
                   const isPartial = result.IsPartial ?? false
-                  console.log('Result details:', { isPartial, transcript: alt.Transcript, IsPartial: result.IsPartial })
+                  // Capture language detected by Transcribe for this result
+                  const lang = result.LanguageCode ?? null
+                  if (lang) setDetectedLanguage(lang)
+                  console.log('Result details:', { isPartial, transcript: alt.Transcript, detectedLanguage: lang })
                   const segment: TranscriptionSegment = {
                     id: `seg-${segmentIdRef.current++}`,
                     transcript: alt.Transcript || '',
+                    detectedLanguage: lang ?? undefined,
                     isPartial,
                     confidence: 0.95,
                     items: [],
@@ -215,7 +247,7 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
                     timestamp: Date.now(),
                   }
 
-                  console.log(isPartial ? '📝 Partial:' : '✓ Final:', segment.transcript)
+                  console.log(isPartial ? '📝 Partial:' : '✓ Final:', segment.transcript, lang ? `[${lang}]` : '')
 
                   if (isPartial) {
                     setCurrentPartial(segment)
@@ -233,7 +265,19 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
       }
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err))
-      console.error('❌ Transcription error:', error)
+      const awsError = err as {
+        name?: string
+        Code?: string
+        $metadata?: { httpStatusCode?: number; requestId?: string }
+      }
+      console.error('❌ Transcription error:', {
+        message: error.message,
+        name: awsError.name,
+        code: awsError.Code,
+        status: awsError.$metadata?.httpStatusCode,
+        requestId: awsError.$metadata?.requestId,
+        error,
+      })
       setError(error)
       setConnectionState(ConnectionState.Error)
     } finally {
@@ -287,7 +331,10 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
       const response = await fetch(apiUrl('/api/analyze-scam'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript }),
+        body: JSON.stringify({ 
+          transcript,
+          user_language: config.userLanguage,
+        }),
       })
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
@@ -300,7 +347,7 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
       console.error('❌ Backend error:', error)
       throw error
     }
-  }, [])
+  }, [config.userLanguage])
 
   /**
    * Stop recording
@@ -336,6 +383,7 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
     setSegments([])
     setCurrentPartial(null)
     setError(null)
+    setDetectedLanguage(null)
     sequenceRef.current = 0
     segmentIdRef.current = 0
   }, [stopRecording])
@@ -356,6 +404,7 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
     segments,
     currentPartial,
     error,
+    detectedLanguage,
     startRecording,
     stopRecording,
     reset,
