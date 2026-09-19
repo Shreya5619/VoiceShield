@@ -222,42 +222,49 @@ export function useTranscription(config: UseTranscriptionConfig = {}): UseTransc
 
       // Process results
       if (response.TranscriptResultStream) {
-        for await (const event of response.TranscriptResultStream) {
-          if (abortController.signal.aborted) break
+        try {
+          for await (const event of response.TranscriptResultStream) {
+            if (abortController.signal.aborted) break
 
-          if (event.TranscriptEvent) {
-            const transcript = event.TranscriptEvent.Transcript
-            if (transcript?.Results) {
-              for (const result of transcript.Results) {
-                if (result.Alternatives && result.Alternatives.length > 0) {
-                  const alt = result.Alternatives[0]
-                  const isPartial = result.IsPartial ?? false
-                  // Capture language detected by Transcribe for this result
-                  const lang = result.LanguageCode ?? null
-                  if (lang) setDetectedLanguage(lang)
-                  console.log('Result details:', { isPartial, transcript: alt.Transcript, detectedLanguage: lang })
-                  const segment: TranscriptionSegment = {
-                    id: `seg-${segmentIdRef.current++}`,
-                    transcript: alt.Transcript || '',
-                    detectedLanguage: lang ?? undefined,
-                    isPartial,
-                    confidence: 0.95,
-                    items: [],
-                    sequenceNumber: sequenceRef.current++,
-                    timestamp: Date.now(),
-                  }
+            if (event?.TranscriptEvent) {
+              const transcript = event.TranscriptEvent.Transcript
+              if (transcript?.Results) {
+                for (const result of transcript.Results) {
+                  if (result.Alternatives && result.Alternatives.length > 0) {
+                    const alt = result.Alternatives[0]
+                    const isPartial = result.IsPartial ?? false
+                    // Capture language detected by Transcribe for this result
+                    const lang = result.LanguageCode ?? null
+                    if (lang) setDetectedLanguage(lang)
+                    console.log('Result details:', { isPartial, transcript: alt.Transcript, detectedLanguage: lang })
+                    const segment: TranscriptionSegment = {
+                      id: `seg-${segmentIdRef.current++}`,
+                      transcript: alt.Transcript || '',
+                      detectedLanguage: lang ?? undefined,
+                      isPartial,
+                      confidence: 0.95,
+                      items: [],
+                      sequenceNumber: sequenceRef.current++,
+                      timestamp: Date.now(),
+                    }
 
-                  console.log(isPartial ? '📝 Partial:' : '✓ Final:', segment.transcript, lang ? `[${lang}]` : '')
+                    console.log(isPartial ? '📝 Partial:' : '✓ Final:', segment.transcript, lang ? `[${lang}]` : '')
 
-                  if (isPartial) {
-                    setCurrentPartial(segment)
-                  } else {
-                    setCurrentPartial(null)
-                    setSegments((prev) => [...prev, segment])
+                    if (isPartial) {
+                      setCurrentPartial(segment)
+                    } else {
+                      setCurrentPartial(null)
+                      setSegments((prev) => [...prev, segment])
+                    }
                   }
                 }
               }
             }
+          }
+        } catch (streamErr) {
+          // Silently handle event stream errors that don't affect functionality
+          if (streamErr instanceof Error && !streamErr.message.includes('aborted')) {
+            console.warn('⚠️ Event stream warning:', streamErr.message)
           }
         }
       } else {

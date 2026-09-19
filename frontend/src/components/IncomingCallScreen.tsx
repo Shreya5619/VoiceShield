@@ -24,8 +24,7 @@ export const IncomingCallScreen: React.FC<IncomingCallScreenProps> = ({
   const trackRef  = useRef<HTMLDivElement>(null)
   const startXRef = useRef(0)                    // pointer X when drag began
   const animRef   = useRef<number | null>(null)
-  const audioContextRef = useRef<AudioContext | null>(null)
-  const ringtoneIntervalRef = useRef<number | null>(null)
+  const ringtoneAudioRef = useRef<HTMLAudioElement | null>(null)
 
   // ── derived ─────────────────────────────────────────────
   const progress = Math.abs(dragX) / THRESHOLD   // 0 → 1
@@ -37,62 +36,36 @@ export const IncomingCallScreen: React.FC<IncomingCallScreenProps> = ({
 
   const clamp = (val: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, val))
 
-  // ── Ringtone generation ─────────────────────────────────
-  const playRingtone = useCallback(() => {
+  // ── Start ringtone on mount, stop on unmount ────────────
+  useEffect(() => {
+    // Create and play ringtone audio
     try {
-      if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)()
+      const audio = new Audio('/Vivo Ringtone Download Mp3.mp3')
+      audio.loop = true
+      audio.volume = 0.7
+      
+      // Play with user gesture handling
+      const playPromise = audio.play()
+      if (playPromise !== undefined) {
+        playPromise.catch(err => {
+          console.warn('Ringtone autoplay prevented:', err)
+        })
       }
       
-      const ctx = audioContextRef.current
-      const now = ctx.currentTime
-      
-      // Create two-tone ringtone (classic phone ring)
-      const frequencies = [480, 620] // Hz - classic phone ring tones
-      
-      frequencies.forEach((freq, index) => {
-        const oscillator = ctx.createOscillator()
-        const gainNode = ctx.createGain()
-        
-        oscillator.type = 'sine'
-        oscillator.frequency.value = freq
-        
-        // Envelope for natural ring sound
-        gainNode.gain.setValueAtTime(0, now)
-        gainNode.gain.linearRampToValueAtTime(0.15, now + 0.05)
-        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.4)
-        
-        oscillator.connect(gainNode)
-        gainNode.connect(ctx.destination)
-        
-        oscillator.start(now + index * 0.05)
-        oscillator.stop(now + 0.4)
-      })
+      ringtoneAudioRef.current = audio
     } catch (err) {
       console.warn('Ringtone playback failed:', err)
     }
-  }, [])
-
-  // ── Start ringtone on mount, stop on unmount ────────────
-  useEffect(() => {
-    // Play ringtone immediately
-    playRingtone()
-    
-    // Repeat every 2 seconds
-    ringtoneIntervalRef.current = window.setInterval(() => {
-      playRingtone()
-    }, 2000)
     
     // Cleanup on unmount
     return () => {
-      if (ringtoneIntervalRef.current) {
-        clearInterval(ringtoneIntervalRef.current)
-      }
-      if (audioContextRef.current) {
-        audioContextRef.current.close()
+      if (ringtoneAudioRef.current) {
+        ringtoneAudioRef.current.pause()
+        ringtoneAudioRef.current.currentTime = 0
+        ringtoneAudioRef.current = null
       }
     }
-  }, [playRingtone])
+  }, [])
 
   const onDragStart = useCallback((clientX: number) => {
     setIsSnapping(false)
@@ -116,22 +89,18 @@ export const IncomingCallScreen: React.FC<IncomingCallScreenProps> = ({
 
     if (dragX >= THRESHOLD) {
       // answered — stop ringtone and call handler
-      if (ringtoneIntervalRef.current) {
-        clearInterval(ringtoneIntervalRef.current)
-      }
-      if (audioContextRef.current) {
-        audioContextRef.current.close()
+      if (ringtoneAudioRef.current) {
+        ringtoneAudioRef.current.pause()
+        ringtoneAudioRef.current.currentTime = 0
       }
       setTimeout(() => onAnswer(), 180)
       return
     }
     if (dragX <= -THRESHOLD) {
       // declined — stop ringtone and call handler
-      if (ringtoneIntervalRef.current) {
-        clearInterval(ringtoneIntervalRef.current)
-      }
-      if (audioContextRef.current) {
-        audioContextRef.current.close()
+      if (ringtoneAudioRef.current) {
+        ringtoneAudioRef.current.pause()
+        ringtoneAudioRef.current.currentTime = 0
       }
       setTimeout(() => onDecline(), 180)
       return

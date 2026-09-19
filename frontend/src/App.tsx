@@ -4,7 +4,11 @@ import AppShell, { AppTab } from './components/AppShell'
 import CallTab from './components/CallTab'
 import ContactsTab from './components/ContactsTab'
 import InboxTab from './components/InboxTab'
+import DesignSystemDemo from './components/DesignSystemDemo'
 import './App.css'
+
+// Temporary: Set to true to view design system demo
+const SHOW_DESIGN_DEMO = false
 
 const PHONE_STORAGE_KEY = 'voiceshield_user_phone'
 
@@ -36,6 +40,11 @@ function App() {
   const handleGoToContacts = useCallback(() => {
     setActiveTab('contacts')
   }, [])
+
+  // Temporary: Show design system demo
+  if (SHOW_DESIGN_DEMO) {
+    return <DesignSystemDemo />
+  }
 
   if (!phone) {
     return (
