@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { Check } from 'lucide-react'
 import ErrorBoundary from './components/ErrorBoundary'
 import AppShell, { AppTab } from './components/AppShell'
 import CallTab from './components/CallTab'
@@ -89,15 +90,15 @@ function App() {
 
             <ul className="vs-hero-points">
               <li>
-                <span className="vs-tick">✓</span>
+                <span className="vs-tick"><Check size={14} strokeWidth={3} /></span>
                 Live scam scoring while the call is happening
               </li>
               <li>
-                <span className="vs-tick">✓</span>
+                <span className="vs-tick"><Check size={14} strokeWidth={3} /></span>
                 Voice fingerprint verification for trusted contacts
               </li>
               <li>
-                <span className="vs-tick">✓</span>
+                <span className="vs-tick"><Check size={14} strokeWidth={3} /></span>
                 Instant alerts the moment something sounds off
               </li>
             </ul>

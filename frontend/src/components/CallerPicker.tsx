@@ -1,4 +1,5 @@
 ﻿import React, { useState, useCallback, useMemo, useEffect } from 'react'
+import { Check, UserRound } from 'lucide-react'
 import useFamilyContacts, { FamilyContact } from '../hooks/useFamilyContacts'
 import { apiUrl } from '../config/api'
 import '../styles/CallerPicker.css'
@@ -98,7 +99,10 @@ export const CallerPicker: React.FC<CallerPickerProps> = ({ ownerPhone, onStartC
       {/* Saved contacts */}
       {contacts.length > 0 ? (
         <>
-          <p className="picker-title">Select Caller</p>
+          <p className="picker-title">
+            Select Caller
+            <span className="picker-title-count">{contacts.length}</span>
+          </p>
           <div className="picker-grid">
             {contacts.map((c: FamilyContact) => (
               <button
@@ -113,7 +117,7 @@ export const CallerPicker: React.FC<CallerPickerProps> = ({ ownerPhone, onStartC
                   {c.relation && <span className="picker-sub relation">{c.relation}</span>}
                   <p className="picker-sub">{c.phone}</p>
                 </div>
-                {selectedId === c.id && <span className="picker-check">✓</span>}
+                {selectedId === c.id && <span className="picker-check"><Check size={20} strokeWidth={2.5} /></span>}
               </button>
             ))}
           </div>
@@ -140,12 +144,12 @@ export const CallerPicker: React.FC<CallerPickerProps> = ({ ownerPhone, onStartC
           onClick={() => handleSelect('unknown')}
           aria-pressed={selectedId === 'unknown'}
         >
-          <div className="picker-avatar unknown">✓</div>
+          <div className="picker-avatar unknown"><UserRound size={22} /></div>
           <div className="picker-info">
             <p className="picker-name">Unknown Caller</p>
             <p className="picker-sub">{unknownPhone}</p>
           </div>
-          {selectedId === 'unknown' && <span className="picker-check">✓</span>}
+          {selectedId === 'unknown' && <span className="picker-check"><Check size={20} strokeWidth={2.5} /></span>}
         </button>
       </div>
 
@@ -157,7 +161,7 @@ export const CallerPicker: React.FC<CallerPickerProps> = ({ ownerPhone, onStartC
               className={`picker-avatar ${selectedCaller.isUnknown ? 'unknown' : ''}`}
               style={{ width: 40, height: 40, fontSize: '1rem' }}
             >
-              {selectedCaller.isUnknown ? '✓' : selectedCaller.name.charAt(0)}
+              {selectedCaller.isUnknown ? <UserRound size={20} /> : selectedCaller.name.charAt(0)}
             </div>
             <div>
               <p className="preview-label">Incoming call from</p>

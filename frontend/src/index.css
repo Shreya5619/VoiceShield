@@ -36,30 +36,30 @@ button:active {
   transform: scale(0.98);
 }
 
-/* Scrollbar — clean minimal */
+/* Scrollbar — clean minimal (dark) */
 ::-webkit-scrollbar { 
   width: 8px; 
   height: 8px; 
 }
 ::-webkit-scrollbar-track { 
-  background: #f1f5f9;
+  background: rgba(245, 245, 240, 0.04);
   border-radius: 10px;
 }
 ::-webkit-scrollbar-thumb { 
-  background: #cbd5e1;
+  background: rgba(245, 245, 240, 0.16);
   border-radius: 10px;
 }
 ::-webkit-scrollbar-thumb:hover { 
-  background: #94a3b8;
+  background: rgba(245, 197, 66, 0.4);
 }
 
 a {
-  color: #3b82f6;
+  color: var(--color-accent);
   text-decoration: none;
   transition: color 0.2s ease;
 }
 a:hover { 
-  color: #2563eb;
+  color: #ffd76a;
   text-decoration: underline; 
 }
 

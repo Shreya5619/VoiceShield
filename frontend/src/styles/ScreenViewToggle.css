@@ -14,8 +14,8 @@
   gap: 4px;
   padding: 4px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(245, 245, 240, 0.06);
+  border: 1px solid rgba(245, 245, 240, 0.12);
 }
 
 .svt-toggle-btn {
@@ -26,19 +26,19 @@
   border-radius: 999px;
   font-size: 0.9rem;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(245, 245, 240, 0.7);
   background: transparent;
   transition: background 0.15s ease, color 0.15s ease;
 }
 
 .svt-toggle-btn:hover {
-  color: #fff;
+  color: #F5F5F0;
 }
 
 .svt-toggle-btn--active {
-  background: linear-gradient(135deg, #4f7cff, #7b5cff);
-  color: #fff;
-  box-shadow: 0 2px 10px rgba(79, 124, 255, 0.4);
+  background: linear-gradient(135deg, #F5C542, #d9a72e);
+  color: #0D0D0D;
+  box-shadow: 0 2px 10px rgba(245, 197, 66, 0.4);
 }
 
 /* --- Escalation stage indicator (Req 14.8) --- */
@@ -53,22 +53,22 @@
 .svt-stage {
   padding: 3px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.55);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(245, 245, 240, 0.12);
+  color: rgba(245, 245, 240, 0.55);
+  background: rgba(245, 245, 240, 0.03);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 .svt-stage--done {
-  color: #7ee0a2;
-  border-color: rgba(126, 224, 162, 0.4);
+  color: #35F28A;
+  border-color: rgba(53, 242, 138, 0.4);
 }
 
 .svt-stage--active {
-  color: #fff;
-  background: rgba(79, 124, 255, 0.25);
-  border-color: rgba(79, 124, 255, 0.7);
+  color: #0D0D0D;
+  background: rgba(245, 197, 66, 0.25);
+  border-color: rgba(245, 197, 66, 0.7);
   font-weight: 700;
 }
 
@@ -84,9 +84,9 @@
   gap: 16px;
   padding: 18px;
   border-radius: 16px;
-  background: rgba(20, 22, 34, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #f5f6fb;
+  background: #171717;
+  border: 1px solid rgba(245, 245, 240, 0.1);
+  color: #F5F5F0;
 }
 
 .svt-caller-header {
@@ -102,7 +102,7 @@
   place-items: center;
   border-radius: 50%;
   font-size: 1.4rem;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(245, 245, 240, 0.08);
 }
 
 .svt-caller-id {
@@ -116,7 +116,7 @@
 
 .svt-caller-sub {
   font-size: 0.78rem;
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(245, 245, 240, 0.55);
 }
 
 .svt-caller-script {
@@ -129,7 +129,7 @@
   margin: 0;
   padding: 10px 14px;
   border-radius: 14px 14px 14px 4px;
-  background: rgba(255, 255, 255, 0.07);
+  background: rgba(245, 245, 240, 0.07);
   font-size: 0.92rem;
   line-height: 1.35;
 }
@@ -137,8 +137,8 @@
 .svt-challenge {
   padding: 12px 14px;
   border-radius: 12px;
-  background: rgba(255, 191, 71, 0.1);
-  border: 1px solid rgba(255, 191, 71, 0.35);
+  background: rgba(245, 197, 66, 0.1);
+  border: 1px solid rgba(245, 197, 66, 0.35);
 }
 
 .svt-challenge-label {
@@ -146,7 +146,7 @@
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #ffd27a;
+  color: #F5C542;
 }
 
 .svt-challenge-question {
@@ -163,22 +163,22 @@
 
 .svt-answer-label {
   font-size: 0.78rem;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(245, 245, 240, 0.7);
 }
 
 .svt-answer-input {
   padding: 10px 12px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(0, 0, 0, 0.25);
-  color: #fff;
+  border: 1px solid rgba(245, 245, 240, 0.18);
+  background: #0D0D0D;
+  color: #F5F5F0;
   font-size: 0.92rem;
 }
 
 .svt-answer-input:focus {
   outline: none;
-  border-color: #4f7cff;
-  box-shadow: 0 0 0 2px rgba(79, 124, 255, 0.3);
+  border-color: #F5C542;
+  box-shadow: 0 0 0 2px rgba(245, 197, 66, 0.3);
 }
 
 .svt-answer-actions {
@@ -195,7 +195,7 @@
   border-radius: 10px;
   font-size: 0.88rem;
   font-weight: 600;
-  color: #fff;
+  color: #0D0D0D;
   transition: opacity 0.15s ease, transform 0.05s ease;
 }
 
@@ -209,33 +209,33 @@
 }
 
 .svt-btn--primary {
-  background: linear-gradient(135deg, #4f7cff, #7b5cff);
+  background: linear-gradient(135deg, #F5C542, #d9a72e);
 }
 
 .svt-btn--danger {
-  background: rgba(255, 90, 90, 0.18);
-  border: 1px solid rgba(255, 90, 90, 0.5);
-  color: #ff9a9a;
+  background: rgba(255, 77, 77, 0.18);
+  border: 1px solid rgba(255, 77, 77, 0.5);
+  color: #FF4D4D;
 }
 
 /* --- Outcome readout --- */
 .svt-outcome {
   margin: 0;
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(245, 245, 240, 0.7);
 }
 
 .svt-outcome--incorrect {
-  color: #ff8080;
+  color: #FF4D4D;
 }
 
 .svt-outcome--correct {
-  color: #7ee0a2;
+  color: #35F28A;
 }
 
 .svt-outcome--unanswered,
 .svt-outcome--bypassed {
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(245, 245, 240, 0.7);
 }
 
 /* --- Protected view wrapper --- */
@@ -250,13 +250,13 @@
   margin: -18px -18px -2px;
   padding: 12px 18px;
   border-radius: 16px 16px 0 0;
-  border-bottom: 1px solid rgba(255, 191, 71, 0.35);
+  border-bottom: 1px solid rgba(245, 197, 66, 0.35);
   background: linear-gradient(
     135deg,
-    rgba(255, 191, 71, 0.22),
-    rgba(255, 158, 71, 0.12)
+    rgba(245, 197, 66, 0.22),
+    rgba(245, 197, 66, 0.12)
   );
-  color: #ffd591;
+  color: #F5C542;
   text-align: center;
   font-size: 1rem;
   font-weight: 700;
@@ -269,6 +269,17 @@
 .svt-caller-banner-sub {
   font-size: 0.75rem;
   font-weight: 500;
-  color: rgba(255, 213, 145, 0.75);
+  color: rgba(245, 197, 66, 0.75);
   letter-spacing: 0.02em;
 }
+
+/* ── Inline lucide icon alignment (replaces former emoji glyphs) ── */
+.svt-caller-banner,
+.svt-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4em;
+}
+.svt-caller-banner { flex-wrap: wrap; }
+.svt-caller-avatar { display: inline-flex; align-items: center; justify-content: center; }

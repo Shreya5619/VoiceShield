@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from 'react'
+import { AlertTriangle, AlertCircle, XCircle, CheckCircle, MicOff } from 'lucide-react'
 import type {
   RiskAssessment,
   SecurityQuestionOutcome,
@@ -36,11 +37,11 @@ const SCAM_RISK_LABEL = 'SCAM RISK'
 const SECURITY_QUESTION_LABEL = 'SECURITY QUESTION'
 
 /** Icon + text for each severity chip (Requirement 13.3). */
-const SEVERITY_CHIP: Record<SeverityLevel, { icon: string; text: string; className: string }> = {
-  low: { icon: '⚠️', text: 'Low', className: 'crp-chip--low' },
-  suspicious: { icon: '⚠️', text: 'Suspicious', className: 'crp-chip--suspicious' },
-  high: { icon: '🔴', text: 'High', className: 'crp-chip--high' },
-  failed: { icon: '🔴', text: 'Failed', className: 'crp-chip--failed' },
+const SEVERITY_CHIP: Record<SeverityLevel, { icon: React.ReactNode; text: string; className: string }> = {
+  low: { icon: <AlertTriangle size={13} />, text: 'Low', className: 'crp-chip--low' },
+  suspicious: { icon: <AlertTriangle size={13} />, text: 'Suspicious', className: 'crp-chip--suspicious' },
+  high: { icon: <AlertCircle size={13} />, text: 'High', className: 'crp-chip--high' },
+  failed: { icon: <XCircle size={13} />, text: 'Failed', className: 'crp-chip--failed' },
 }
 
 /** Map a SecurityQuestionOutcome to a display value + severity chip. */
@@ -161,12 +162,12 @@ export const CombinedRiskPanel: React.FC<CombinedRiskPanelProps> = ({
         {/* ── Report feedback (Requirements 13.10, 13.11) ── */}
         {reportState === 'done' && (
           <p className="crp-report-confirm" role="status" data-testid="crp-report-confirm">
-            ✅ Report submitted. Thank you for helping keep the community safe.
+            <CheckCircle size={14} /> Report submitted. Thank you for helping keep the community safe.
           </p>
         )}
         {reportState === 'error' && (
           <p className="crp-report-error" role="alert" data-testid="crp-report-error">
-            ⚠️ {reportError}
+            <AlertTriangle size={14} /> {reportError}
           </p>
         )}
 
@@ -188,7 +189,7 @@ export const CombinedRiskPanel: React.FC<CombinedRiskPanelProps> = ({
           >
             {isMuted ? (
               <>
-                <span aria-hidden="true">🔇</span> Muted
+                <MicOff size={14} aria-hidden="true" /> Muted
               </>
             ) : (
               'Mute'

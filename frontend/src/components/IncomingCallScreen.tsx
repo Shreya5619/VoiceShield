@@ -1,4 +1,5 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react'
+import { Phone, PhoneOff, PhoneIncoming, HelpCircle } from 'lucide-react'
 import { CallerInfo } from './CallerPicker'
 import '../styles/IncomingCallScreen.css'
 
@@ -165,10 +166,10 @@ export const IncomingCallScreen: React.FC<IncomingCallScreenProps> = ({
   // ── Pill icon ────────────────────────────────────────────
   const pillIcon =
     direction === 'right' && progress > 0.2
-      ? '📞'
+      ? <Phone size={26} strokeWidth={2.2} />
       : direction === 'left' && progress > 0.2
-      ? '📵'
-      : '☎️'
+      ? <PhoneOff size={26} strokeWidth={2.2} />
+      : <PhoneIncoming size={26} strokeWidth={2.2} />
 
   return (
     <div className="incoming-screen">
@@ -187,7 +188,7 @@ export const IncomingCallScreen: React.FC<IncomingCallScreenProps> = ({
           <div className="incoming-avatar-pulse" />
           <div className="incoming-avatar-pulse" />
           <div className={`incoming-avatar ${caller.isUnknown ? 'unknown' : ''}`}>
-            {caller.isUnknown ? '❓' : caller.name.charAt(0).toUpperCase()}
+            {caller.isUnknown ? <HelpCircle size={44} strokeWidth={1.8} /> : caller.name.charAt(0).toUpperCase()}
           </div>
         </div>
 
@@ -204,11 +205,11 @@ export const IncomingCallScreen: React.FC<IncomingCallScreenProps> = ({
         {/* Labels */}
         <div className="swipe-hint">
           <div className="swipe-label decline">
-            <span className="swipe-label-icon">📵</span>
+            <span className="swipe-label-icon"><PhoneOff size={16} /></span>
             <span>Decline</span>
           </div>
           <div className="swipe-label answer">
-            <span className="swipe-label-icon">📞</span>
+            <span className="swipe-label-icon"><Phone size={16} /></span>
             <span>Answer</span>
           </div>
         </div>

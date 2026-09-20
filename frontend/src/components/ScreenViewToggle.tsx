@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { Phone, UserRound, Shield } from 'lucide-react'
 import {
   useCallSecurity,
   type ScreenView,
@@ -161,12 +162,12 @@ export const CallerSimulationView: React.FC<CallerSimulationViewProps> = ({
   return (
     <section className="svt-caller-view" aria-label="Caller simulation">
       <div className="svt-caller-banner" role="note" aria-label="Caller-facing screen">
-        📞 Caller's View
+        <Phone size={15} /> Caller's View
         <span className="svt-caller-banner-sub">This is what the caller sees</span>
       </div>
       <header className="svt-caller-header">
         <span className="svt-caller-avatar" aria-hidden="true">
-          👤
+          <UserRound size={26} />
         </span>
         <div className="svt-caller-id">
           <span className="svt-caller-name">Unknown Caller</span>
@@ -256,7 +257,7 @@ export const ScreenViewToggle: React.FC<ScreenViewToggleProps> = ({
           aria-selected={screenView === 'protected'}
           onClick={select('protected')}
         >
-          🛡️ Protected
+          <Shield size={15} /> Protected
         </button>
         <button
           type="button"
@@ -267,7 +268,7 @@ export const ScreenViewToggle: React.FC<ScreenViewToggleProps> = ({
           aria-selected={screenView === 'caller'}
           onClick={select('caller')}
         >
-          📞 Caller
+          <Phone size={15} /> Caller
         </button>
       </div>
 

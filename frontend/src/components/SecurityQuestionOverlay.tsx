@@ -18,6 +18,7 @@
  *   overlay; the typed input + submit is the required path.
  */
 import React, { useEffect, useRef, useState, useCallback } from 'react'
+import { AlertTriangle, Lock, Volume2, PhoneOff } from 'lucide-react'
 import { FamilyContact } from '../hooks/useFamilyContacts'
 // useVoiceVerification is being created in parallel (task 2.1). Prefer importing
 // the result type from it once available.
@@ -164,13 +165,13 @@ export const SecurityQuestionOverlay: React.FC<SecurityQuestionOverlayProps> = (
 
         {/* Header — tentative wording only */}
         <div className="vmis-header">
-          <span className="vmis-icon">⚠️</span>
+          <span className="vmis-icon"><AlertTriangle size={22} /></span>
           <h2 className="vmis-title">Possible impersonation</h2>
         </div>
 
         {/* Tentative banner shown while the challenge is incomplete */}
         <div className="sqo-banner" role="status">
-          ⚠️ Possible impersonation
+          <AlertTriangle size={14} /> Possible impersonation
         </div>
 
         {/* Match percentage */}
@@ -203,10 +204,10 @@ export const SecurityQuestionOverlay: React.FC<SecurityQuestionOverlayProps> = (
 
         {/* Security question */}
         <div className="vmis-question-box">
-          <p className="vmis-question-label">🔒 Ask the caller:</p>
+          <p className="vmis-question-label"><Lock size={13} /> Ask the caller:</p>
           <p className="vmis-question-text">"{question}"</p>
           <button type="button" className="vmis-speak-question" onClick={askQuestion}>
-            🔊 Speak question
+            <Volume2 size={14} /> Speak question
           </button>
         </div>
 
@@ -247,7 +248,7 @@ export const SecurityQuestionOverlay: React.FC<SecurityQuestionOverlayProps> = (
           Trust This Call
         </button>
         <button type="button" className="vmis-btn vmis-btn-end" onClick={handleEnd}>
-          📵 Mark as Scam &amp; End Call
+          <PhoneOff size={15} /> Mark as Scam &amp; End Call
         </button>
 
       </div>

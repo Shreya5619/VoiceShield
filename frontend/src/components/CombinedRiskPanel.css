@@ -8,7 +8,7 @@
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  background: rgba(6, 10, 20, 0.72);
+  background: rgba(0, 0, 0, 0.72);
   backdrop-filter: blur(6px);
 }
 
@@ -17,19 +17,19 @@
   max-width: 460px;
   padding: 1.5rem;
   border-radius: 16px;
-  background: rgba(18, 24, 38, 0.96);
-  border: 1px solid rgba(0, 229, 255, 0.18);
+  background: #171717;
+  border: 1px solid rgba(245, 197, 66, 0.18);
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
-  color: #e8edf5;
+  color: #F5F5F0;
 }
 
 .crp-overlay--high .crp-card {
-  border-color: rgba(255, 68, 68, 0.5);
-  box-shadow: 0 12px 48px rgba(255, 68, 68, 0.25);
+  border-color: rgba(255, 77, 77, 0.5);
+  box-shadow: 0 12px 48px rgba(255, 77, 77, 0.25);
 }
 
 .crp-overlay--medium .crp-card {
-  border-color: rgba(255, 176, 32, 0.45);
+  border-color: rgba(245, 197, 66, 0.45);
 }
 
 .crp-title {
@@ -53,14 +53,14 @@
   gap: 0.75rem;
   padding: 0.6rem 0.75rem;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(245, 245, 240, 0.04);
 }
 
 .crp-row-label {
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: #9fb0c4;
+  color: #A3A3A3;
 }
 
 .crp-row-value {
@@ -72,7 +72,7 @@
 .crp-unavailable {
   font-style: italic;
   font-weight: 500;
-  color: #7c8aa0;
+  color: #A3A3A3;
 }
 
 /* ── Severity chips ── */
@@ -89,28 +89,28 @@
 }
 
 .crp-chip--low {
-  color: #35f28a;
+  color: #35F28A;
   background: rgba(53, 242, 138, 0.12);
   border-color: rgba(53, 242, 138, 0.3);
 }
 
 .crp-chip--suspicious {
-  color: #ffb020;
-  background: rgba(255, 176, 32, 0.12);
-  border-color: rgba(255, 176, 32, 0.3);
+  color: #F5C542;
+  background: rgba(245, 197, 66, 0.12);
+  border-color: rgba(245, 197, 66, 0.3);
 }
 
 .crp-chip--high,
 .crp-chip--failed {
-  color: #ff5c72;
-  background: rgba(255, 68, 68, 0.14);
-  border-color: rgba(255, 68, 68, 0.35);
+  color: #FF4D4D;
+  background: rgba(255, 77, 77, 0.14);
+  border-color: rgba(255, 77, 77, 0.35);
 }
 
 .crp-chip--unavailable {
-  color: #7c8aa0;
-  background: rgba(124, 138, 160, 0.12);
-  border-color: rgba(124, 138, 160, 0.25);
+  color: #A3A3A3;
+  background: rgba(163, 163, 163, 0.12);
+  border-color: rgba(163, 163, 163, 0.25);
   font-style: italic;
   font-weight: 600;
 }
@@ -122,18 +122,18 @@
   border-radius: 10px;
   font-size: 0.9rem;
   line-height: 1.45;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(245, 245, 240, 0.05);
+  border: 1px solid rgba(245, 245, 240, 0.08);
 }
 
 .crp-overlay--high .crp-banner {
-  background: rgba(255, 68, 68, 0.1);
-  border-color: rgba(255, 68, 68, 0.3);
+  background: rgba(255, 77, 77, 0.1);
+  border-color: rgba(255, 77, 77, 0.3);
 }
 
 .crp-overlay--medium .crp-banner {
-  background: rgba(255, 176, 32, 0.1);
-  border-color: rgba(255, 176, 32, 0.3);
+  background: rgba(245, 197, 66, 0.1);
+  border-color: rgba(245, 197, 66, 0.3);
 }
 
 /* ── Report feedback ── */
@@ -147,15 +147,15 @@
 }
 
 .crp-report-confirm {
-  color: #35f28a;
+  color: #35F28A;
   background: rgba(53, 242, 138, 0.1);
   border: 1px solid rgba(53, 242, 138, 0.3);
 }
 
 .crp-report-error {
-  color: #ff8a80;
-  background: rgba(255, 68, 68, 0.1);
-  border: 1px solid rgba(255, 68, 68, 0.3);
+  color: #FF4D4D;
+  background: rgba(255, 77, 77, 0.1);
+  border: 1px solid rgba(255, 77, 77, 0.3);
 }
 
 /* ── Actions ── */
@@ -169,9 +169,9 @@
 .crp-btn {
   padding: 0.7rem 1rem;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.06);
-  color: #e8edf5;
+  border: 1px solid rgba(245, 245, 240, 0.14);
+  background: rgba(245, 245, 240, 0.06);
+  color: #F5F5F0;
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
@@ -179,7 +179,7 @@
 }
 
 .crp-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(245, 245, 240, 0.12);
 }
 
 .crp-btn:disabled {
@@ -188,22 +188,36 @@
 }
 
 .crp-btn--continue {
-  color: #35f28a;
+  color: #35F28A;
   border-color: rgba(53, 242, 138, 0.4);
 }
 
 .crp-btn--muted {
-  color: #ffb020;
-  border-color: rgba(255, 176, 32, 0.5);
-  background: rgba(255, 176, 32, 0.12);
+  color: #F5C542;
+  border-color: rgba(245, 197, 66, 0.5);
+  background: rgba(245, 197, 66, 0.12);
 }
 
 .crp-btn--end {
-  color: #ff5c72;
-  border-color: rgba(255, 68, 68, 0.4);
+  color: #FF4D4D;
+  border-color: rgba(255, 77, 77, 0.4);
 }
 
 .crp-btn--report {
-  color: #00e5ff;
-  border-color: rgba(0, 229, 255, 0.4);
+  color: #F5C542;
+  border-color: rgba(245, 197, 66, 0.4);
 }
+
+/* ── Inline lucide icon alignment (replaces former emoji glyphs) ── */
+.crp-chip,
+.crp-report-confirm,
+.crp-report-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+}
+.crp-btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.35em; }
+.crp-chip svg,
+.crp-report-confirm svg,
+.crp-report-error svg,
+.crp-btn svg { flex-shrink: 0; }

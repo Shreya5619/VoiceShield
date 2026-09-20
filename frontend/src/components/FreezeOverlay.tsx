@@ -1,4 +1,15 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
+import {
+  Loader,
+  Search,
+  ShieldAlert,
+  Shield,
+  Phone,
+  AlertTriangle,
+  Volume2,
+  Volume1,
+  Pause,
+} from 'lucide-react'
 import { ScamAnalysisResult } from '../types'
 import type { FamilyContact } from '../hooks/useFamilyContacts'
 import '../styles/IdentityPrompt.css'
@@ -198,7 +209,7 @@ export const FreezeOverlay: React.FC<FreezeOverlayProps> = ({
       return (
         <div className="freeze-section freeze-identity-status" role="status">
           <p className="freeze-section-title">
-            {verificationInProgress ? '🔄 ' : '🔎 '}{verifyingText}
+            {verificationInProgress ? <Loader size={13} className="freeze-spin" /> : <Search size={13} />}{' '}{verifyingText}
           </p>
         </div>
       )
@@ -308,7 +319,7 @@ export const FreezeOverlay: React.FC<FreezeOverlayProps> = ({
         {/* ── Header ──────────────────────────────── */}
         <div className="freeze-header">
           <h2 className="freeze-title">
-            <span>🚨</span> AI Scam Alert
+            <ShieldAlert size={18} /> AI Scam Alert
           </h2>
           <button className="freeze-dismiss" onClick={handleDismiss} aria-label="Dismiss alert">
             Dismiss
@@ -336,7 +347,7 @@ export const FreezeOverlay: React.FC<FreezeOverlayProps> = ({
               className={`freeze-view-tab ${activeView === 'protected' ? 'active' : ''}`}
               onClick={() => setActiveView('protected')}
             >
-              {isHindi(languageCode) ? '🛡️ आपकी स्क्रीन' : '🛡️ Your Screen'}
+<Shield size={14} /> {isHindi(languageCode) ? 'आपकी स्क्रीन' : 'Your Screen'}
             </button>
             <button
               type="button"
@@ -345,7 +356,7 @@ export const FreezeOverlay: React.FC<FreezeOverlayProps> = ({
               className={`freeze-view-tab ${activeView === 'caller' ? 'active' : ''}`}
               onClick={() => setActiveView('caller')}
             >
-              {isHindi(languageCode) ? '📞 कॉलर स्क्रीन' : '📞 Caller Screen'}
+<Phone size={14} /> {isHindi(languageCode) ? 'कॉलर स्क्रीन' : 'Caller Screen'}
             </button>
           </div>
         )}
@@ -363,7 +374,7 @@ export const FreezeOverlay: React.FC<FreezeOverlayProps> = ({
                   background:  `${getRiskColor(result.risk_level)}18`,
                 }}
               >
-                <span>⚠️</span>
+                <AlertTriangle size={15} />
                 Risk Level: {result.risk_level}
               </div>
             )}
@@ -378,7 +389,7 @@ export const FreezeOverlay: React.FC<FreezeOverlayProps> = ({
                   background:  result.scam_probability >= 0.75 ? '#ff444418' : '#ff980018',
                 }}
               >
-                <span>⚠️</span>
+                <AlertTriangle size={15} />
                 Scam Probability: {(result.scam_probability * 100).toFixed(1)}%
               </div>
             )}
@@ -400,7 +411,7 @@ export const FreezeOverlay: React.FC<FreezeOverlayProps> = ({
                 <div className="freeze-divider" />
                 <div className="freeze-section">
                   <p className="freeze-section-title">
-                    🔎 Ask the caller — tap a question to read it aloud
+                    <Search size={13} /> Ask the caller — tap a question to read it aloud
                   </p>
                   <ol className="freeze-questions" style={{ listStyle: 'none', paddingLeft: 0 }}>
                     {result.verification_questions.slice(0, 10).map((q, i) => {
@@ -421,7 +432,7 @@ export const FreezeOverlay: React.FC<FreezeOverlayProps> = ({
 
                             {/* Speaker icon */}
                             <span className="question-speaker-icon" aria-hidden="true">
-                              {isPlaying ? '🔊' : '🔈'}
+                              {isPlaying ? <Volume2 size={18} /> : <Volume1 size={18} />}
                             </span>
                           </button>
                         </li>
@@ -443,8 +454,11 @@ export const FreezeOverlay: React.FC<FreezeOverlayProps> = ({
                 color: '#ffb74d',
                 marginTop: hasContent ? '0.75rem' : '0.25rem',
                 lineHeight: 1.5,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
               }}>
-                ⚠️ {result.analysis_error}
+                <AlertTriangle size={15} /> {result.analysis_error}
               </div>
             )}
 
@@ -471,7 +485,7 @@ export const FreezeOverlay: React.FC<FreezeOverlayProps> = ({
 
         {result && activeView === 'caller' && (
           <section className="caller-hold-view" aria-label="Caller view">
-            <div className="caller-hold-icon" aria-hidden="true">⏸</div>
+            <div className="caller-hold-icon" aria-hidden="true"><Pause size={22} /></div>
             <p className="caller-hold-eyebrow">{isHindi(languageCode) ? 'कॉल रोक दी गई है' : 'Call temporarily paused'}</p>
             <h3 className="caller-hold-title">
               {isHindi(languageCode)
@@ -493,7 +507,7 @@ export const FreezeOverlay: React.FC<FreezeOverlayProps> = ({
                 -1,
               )}
             >
-              🔊 {isHindi(languageCode) ? 'संदेश पढ़कर सुनाएं' : 'Read hold message aloud'}
+              <Volume2 size={15} /> {isHindi(languageCode) ? 'संदेश पढ़कर सुनाएं' : 'Read hold message aloud'}
             </button>
 
             {/* Selected contact's stored security question — shown ONLY on the
@@ -512,7 +526,7 @@ export const FreezeOverlay: React.FC<FreezeOverlayProps> = ({
                   onClick={() => speak(trimmedSecurityQuestion, SECURITY_QUESTION_INDEX)}
                   aria-pressed={speakingIndex === SECURITY_QUESTION_INDEX}
                 >
-                  🔊 {isHindi(languageCode) ? 'प्रश्न पढ़कर सुनाएं' : 'Read question aloud'}
+                  <Volume2 size={15} /> {isHindi(languageCode) ? 'प्रश्न पढ़कर सुनाएं' : 'Read question aloud'}
                 </button>
               </div>
             )}

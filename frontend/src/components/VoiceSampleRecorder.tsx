@@ -16,6 +16,7 @@
  */
 
 import React, { useRef, useState, useCallback, useEffect } from 'react'
+import { Mic, Circle, Square, Loader, CheckCircle, X, AlertTriangle } from 'lucide-react'
 import { SpeakerEmbedding } from '../hooks/useFamilyContacts'
 import { apiUrl } from '../config/api'
 import { encodeWav } from '../utils/wav'
@@ -201,51 +202,51 @@ export const VoiceSampleRecorder: React.FC<VoiceSampleRecorderProps> = ({
   return (
     <div className="voice-recorder">
       <div className="voice-recorder-label">
-        <span>🎙️</span>
+        <Mic size={15} />
         <span>Voice Sample</span>
         <span className="voice-recorder-hint">(optional — say "hello world")</span>
       </div>
 
       {recState.status === 'idle' && (
         <button type="button" className="voice-btn record" onClick={startRecording}>
-          ● Start 5-second recording
+          <Circle size={13} fill="currentColor" /> Start 5-second recording
         </button>
       )}
 
       {recState.status === 'recording' && (
         <div className="voice-recording-row">
-          <span className="voice-recording-pulse">🔴</span>
+          <span className="voice-recording-pulse"><Circle size={13} fill="currentColor" /></span>
           <span className="voice-recording-countdown">
             Recording… {recState.secondsLeft}s
           </span>
           <button type="button" className="voice-btn stop" onClick={stopRecording}>
-            ■ Stop
+            <Square size={13} fill="currentColor" /> Stop
           </button>
         </div>
       )}
 
       {recState.status === 'uploading' && (
         <div className="voice-uploading">
-          <span className="voice-spinner">⏳</span>
+          <span className="voice-spinner"><Loader size={15} /></span>
           <span>Generating speaker embedding…</span>
         </div>
       )}
 
       {recState.status === 'done' && (
         <div className="voice-done-row">
-          <span className="voice-done-icon">✅</span>
+          <span className="voice-done-icon"><CheckCircle size={15} /></span>
           <span className="voice-done-text">
             Voice sample ready · {recState.embedding.dim}d embedding
           </span>
           <button type="button" className="voice-btn clear" onClick={handleClear}>
-            ✕ Clear
+            <X size={13} /> Clear
           </button>
         </div>
       )}
 
       {recState.status === 'error' && (
         <div className="voice-error-row">
-          <span>⚠️ {recState.message}</span>
+          <span><AlertTriangle size={14} /> {recState.message}</span>
           <button type="button" className="voice-btn record" onClick={startRecording}>
             Retry
           </button>

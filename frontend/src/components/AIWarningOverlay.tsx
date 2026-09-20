@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { ShieldAlert, AlertTriangle, CheckCircle } from 'lucide-react'
 import '../styles/AIWarningOverlay.css'
 
 export interface AIWarningData {
@@ -54,7 +55,7 @@ export const AIWarningOverlay: React.FC<AIWarningOverlayProps> = ({
     <div className={`ai-warning-overlay ${getAlertLevelClass()}`}>
       <div className="ai-warning-content">
         <div className="ai-warning-icon">
-          {data.confidence_level === 'HIGH' ? '🚨' : data.confidence_level === 'MEDIUM' ? '⚠️' : '✅'}
+          {data.confidence_level === 'HIGH' ? <ShieldAlert size={48} /> : data.confidence_level === 'MEDIUM' ? <AlertTriangle size={48} /> : <CheckCircle size={48} />}
         </div>
 
         <h2 className="ai-warning-title">

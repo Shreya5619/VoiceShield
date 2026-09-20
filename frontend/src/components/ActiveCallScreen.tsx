@@ -6,6 +6,30 @@
   useMemo,
   useReducer,
 } from 'react'
+import {
+  SignalHigh,
+  BatteryFull,
+  ShieldAlert,
+  HelpCircle,
+  Bot,
+  Lock,
+  Mic,
+  MicOff,
+  Phone,
+  User,
+  UserRound,
+  Check,
+  X,
+  Loader,
+  CheckCircle,
+  AlertTriangle,
+  ShieldCheck,
+  PhoneOff,
+  Volume2,
+  Volume1,
+  Shield,
+  Languages,
+} from 'lucide-react'
 import { CallerInfo } from './CallerPicker'
 import FreezeOverlay from './FreezeOverlay'
 import AIWarningOverlay from './AIWarningOverlay'
@@ -919,10 +943,12 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
   const voiceMismatched =
     verificationState === 'fail' ||
     (verificationResult !== null && !verificationResult.verified)
-  const impersonationBanner =
-    voiceMismatched && securityQuestionOutcome === 'incorrect'
-      ? '🚨 Impersonation risk: HIGH'
-      : '⚠️ Possible impersonation'
+  const impersonationHigh = voiceMismatched && securityQuestionOutcome === 'incorrect'
+  const impersonationBanner = impersonationHigh ? (
+    <><ShieldAlert size={15} strokeWidth={2.4} /> Impersonation risk: HIGH</>
+  ) : (
+    <><AlertTriangle size={15} strokeWidth={2.4} /> Possible impersonation</>
+  )
 
   // Report handler for the CombinedRiskPanel — reuse the emergency-contact alert.
   const handleReportRisk = useCallback(async () => {
@@ -941,8 +967,8 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
         <div className="call-statusbar">
           <span className="call-statusbar-time">{clockStr}</span>
           <div className="call-statusbar-icons">
-            <span>📶</span>
-            <span>🔋</span>
+            <SignalHigh size={14} />
+            <BatteryFull size={14} />
           </div>
         </div>
 
@@ -955,7 +981,7 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
               onClick={() => setShowFreeze(true)}
               aria-label="View AI scam alert"
             >
-              🛡️ AI Alert
+              <ShieldAlert size={15} /> AI Alert
             </button>
           )}
 
@@ -964,7 +990,7 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
             <div className="call-ring" />
             <div className="call-ring" />
             <div className={`call-avatar ${caller.isUnknown ? 'unknown' : ''}`}>
-              {caller.isUnknown ? '❓' : caller.name.charAt(0).toUpperCase()}
+              {caller.isUnknown ? <HelpCircle size={42} strokeWidth={1.8} /> : caller.name.charAt(0).toUpperCase()}
             </div>
           </div>
 
@@ -1034,13 +1060,13 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
               className={`language-badge ${isHindi ? 'lang-hindi' : 'lang-english'}`}
               aria-label={`Detected language: ${isHindi ? 'Hindi' : 'English'}`}
             >
-              {isHindi ? '🇮🇳 हिंदी → EN' : '🇺🇸 English'}
+              <Languages size={13} /> {isHindi ? 'हिंदी → EN' : 'English'}
             </div>
           )}
 
           {/* ── AI Response Language indicator ───────────────── */}
           <div className="ai-response-language-badge">
-            🤖 AI responses in: {languageCode === 'hi' ? 'हिंदी (Hindi)' : 'English'}
+            <Bot size={13} /> AI responses in: {languageCode === 'hi' ? 'हिंदी (Hindi)' : 'English'}
           </div>
 
           {/* ── Privacy routing badge ─────────────────────────────────── */}
@@ -1051,7 +1077,7 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
             >
               {privacyMode === 'active' ? (
                 <>
-                  <span className="prb-icon">🔏</span>
+                  <span className="prb-icon"><Lock size={13} /></span>
                   <span className="prb-label">
                     {filteredTotalMs > 0
                       ? `Your voice protected · ${Math.round(filteredTotalMs / 1000)}s filtered`
@@ -1063,7 +1089,7 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
                 </>
               ) : (
                 <>
-                  <span className="prb-icon">🎙️</span>
+                  <span className="prb-icon"><Mic size={13} /></span>
                   <span className="prb-label">Monitoring all audio (no voice profiles enrolled)</span>
                 </>
               )}
@@ -1076,15 +1102,17 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
               {privacyBadgeItems.map(({ label, seconds, routed }) => (
                 <div key={label} className={`spk-row spk-${routed}`}>
                   <span className="spk-label">
-                    {label === 'UNKNOWN'
-                      ? '📞 Caller'
-                      : label === 'SELF'
-                      ? '🙍 You'
-                      : `👤 ${label.replace('FAMILY_', '')}`}
+                    {label === 'UNKNOWN' ? (
+                      <><Phone size={12} /> Caller</>
+                    ) : label === 'SELF' ? (
+                      <><User size={12} /> You</>
+                    ) : (
+                      <><UserRound size={12} /> {label.replace('FAMILY_', '')}</>
+                    )}
                   </span>
                   <span className="spk-time">{seconds}s</span>
                   <span className="spk-route-tag">
-                    {routed === 'transcribed' ? 'analysed' : '🔒 protected'}
+                    {routed === 'transcribed' ? 'analysed' : <><Lock size={11} /> protected</>}
                   </span>
                 </div>
               ))}
@@ -1118,8 +1146,8 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
                 <span className="cdc-label">Voice sample</span>
                 <span className={`cdc-embed-badge ${familyContact.speakerEmbedding ? 'stored' : 'missing'}`}>
                   {familyContact.speakerEmbedding
-                    ? `✓ ${familyContact.speakerEmbedding.dim}d embedding stored`
-                    : '✗ not enrolled'}
+                    ? <><Check size={11} strokeWidth={3} /> {familyContact.speakerEmbedding.dim}d embedding stored</>
+                    : <><X size={11} strokeWidth={3} /> not enrolled</>}
                 </span>
               </div>
             </div>
@@ -1129,14 +1157,14 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
           {caller.isUnknown && (verificationState !== 'idle' || verificationResult) && (
             <div className="voice-match-badge" data-state={verificationState}>
               {verificationState === 'capturing' && (
-                <span className="vmb-sampling">🎙️ Listening…</span>
+                <span className="vmb-sampling"><Mic size={13} /> Listening…</span>
               )}
               {verificationState === 'comparing' && (
-                <span className="vmb-comparing">🔄 Checking identity…</span>
+                <span className="vmb-comparing"><Loader size={13} /> Checking identity…</span>
               )}
               {verificationResult && callVerified && (
-                <span className="vmb-result" style={{ color: '#4ade80' }}>
-                  ✅ Verified — {verificationResult.matchPercent.toFixed(1)}%
+                <span className="vmb-result" style={{ color: '#35F28A' }}>
+                  <CheckCircle size={13} /> Verified — {verificationResult.matchPercent.toFixed(1)}%
                 </span>
               )}
               {verificationResult && !callVerified && (
@@ -1150,7 +1178,7 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
                       : '#ff6b6b',
                   }}
                 >
-                  {verificationResult.verified ? '✅' : '⚠️'}{' '}
+                  {verificationResult.verified ? <CheckCircle size={13} /> : <AlertTriangle size={13} />}{' '}
                   Voice match: <strong>{verificationResult.matchPercent.toFixed(1)}%</strong>
                   {!verificationResult.verified && ' — checking security…'}
                 </span>
@@ -1171,7 +1199,7 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
           {/* Verified badge replaces scam indicator */}
           {callVerified && (
             <div className="call-verified-badge">
-              ✅ Call Verified — monitoring stopped
+              <ShieldCheck size={14} /> Call Verified — monitoring stopped
             </div>
           )}
 
@@ -1188,7 +1216,7 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
                 aria-label={isMuted ? 'Unmute' : 'Mute'}
                 aria-pressed={isMuted}
               >
-                {isMuted ? '🔇' : '🎙️'}
+                {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
               </button>
               <span className="call-action-label">{isMuted ? 'Unmute' : 'Mute'}</span>
             </div>
@@ -1199,7 +1227,7 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
                 onClick={handleEndCall}
                 aria-label="End call"
               >
-                📵
+                <PhoneOff size={26} />
               </button>
               <span className="call-action-label" style={{ color: '#ff6b6b' }}>End</span>
             </div>
@@ -1211,7 +1239,7 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
                 aria-label={isSpeaker ? 'Speaker off' : 'Speaker on'}
                 aria-pressed={isSpeaker}
               >
-                {isSpeaker ? '🔊' : '🔈'}
+                {isSpeaker ? <Volume2 size={24} /> : <Volume1 size={24} />}
               </button>
               <span className="call-action-label">Speaker</span>
             </div>
@@ -1224,7 +1252,7 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
         {!callVerified && verificationState !== 'pass' && (
           <div className="scam-risk-bar-wrap">
             <div className="scam-risk-header">
-              <span className="scam-risk-label">🛡️ Scam Risk</span>
+              <span className="scam-risk-label"><Shield size={12} /> Scam Risk</span>
               <span className="scam-risk-percentage" style={{ color: riskColor }}>
                 {(scamProb * 100).toFixed(1)}%
               </span>

@@ -4,30 +4,39 @@
    ============================================================ */
 
 :root {
-  /* Color Palette */
-  --color-background: #05070B;
-  --color-card: #0B1017;
-  --color-primary: #00E5FF;
+  /* ── Color Palette — VoiceShield "Signal" (black + signal-yellow) ──
+     bg #0D0D0D · cards #171717 · accent #F5C542 · text #F5F5F0 · muted #A3A3A3 */
+  --color-background: #0D0D0D;
+  --color-card: #171717;
+  --color-accent: #F5C542;
+  /* --color-primary kept as an alias so existing rules pick up the accent */
+  --color-primary: #F5C542;
   --color-safe: #35F28A;
-  --color-warning: #FFB020;
-  --color-danger: #FF3B5C;
-  --color-text: #F5F7FA;
-  --color-muted: #7B8794;
-  
+  --color-warning: #F5C542;
+  --color-danger: #FF4D4D;
+  --color-text: #F5F5F0;
+  --color-muted: #A3A3A3;
+
+  /* Surfaces & hairlines */
+  --color-surface-2: #1F1F1F;
+  --color-border: rgba(245, 245, 240, 0.08);
+  --color-border-strong: rgba(245, 245, 240, 0.16);
+
   /* Glassmorphism */
-  --glass-bg: rgba(11, 16, 23, 0.7);
-  --glass-border: rgba(0, 229, 255, 0.1);
+  --glass-bg: rgba(23, 23, 23, 0.72);
+  --glass-border: rgba(245, 197, 66, 0.12);
   --glass-blur: 10px;
-  
+
   /* Shadows & Glows */
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-xl: 0 12px 40px rgba(0, 0, 0, 0.6);
-  --glow-primary: 0 0 20px rgba(0, 229, 255, 0.4);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.55);
+  --shadow-xl: 0 24px 60px rgba(0, 0, 0, 0.6);
+  --glow-accent: 0 0 20px rgba(245, 197, 66, 0.4);
+  --glow-primary: 0 0 20px rgba(245, 197, 66, 0.4);
   --glow-safe: 0 0 20px rgba(53, 242, 138, 0.4);
-  --glow-warning: 0 0 20px rgba(255, 176, 32, 0.4);
-  --glow-danger: 0 0 20px rgba(255, 59, 92, 0.4);
+  --glow-warning: 0 0 20px rgba(245, 197, 66, 0.4);
+  --glow-danger: 0 0 20px rgba(255, 77, 77, 0.4);
   
   /* Spacing */
   --spacing-xs: 0.25rem;
@@ -78,7 +87,7 @@
 }
 
 .glass-card-hover:hover {
-  border-color: rgba(0, 229, 255, 0.3);
+  border-color: rgba(245, 197, 66, 0.3);
   box-shadow: var(--shadow-xl), var(--glow-primary);
   transform: translateY(-2px);
 }
@@ -137,8 +146,8 @@
 /* Grid Background */
 .grid-background {
   background-image: 
-    linear-gradient(rgba(0, 229, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 229, 255, 0.03) 1px, transparent 1px);
+    linear-gradient(rgba(245, 197, 66, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(245, 197, 66, 0.035) 1px, transparent 1px);
   background-size: 50px 50px;
   background-position: -1px -1px;
 }
@@ -179,7 +188,7 @@
   }
   50% {
     opacity: 0.7;
-    box-shadow: 0 0 40px rgba(0, 229, 255, 0.6);
+    box-shadow: 0 0 40px rgba(245, 197, 66, 0.6);
   }
 }
 
@@ -253,13 +262,13 @@
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(0, 229, 255, 0.2);
+  background: rgba(245, 197, 66, 0.2);
   border-radius: 4px;
   transition: background var(--transition-base);
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 229, 255, 0.4);
+  background: rgba(245, 197, 66, 0.4);
 }
 
 /* Focus States (Accessibility) */

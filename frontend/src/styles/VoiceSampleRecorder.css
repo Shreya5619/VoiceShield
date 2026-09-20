@@ -15,11 +15,11 @@
   gap: 0.4rem;
   font-size: 0.8rem;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(245, 245, 240, 0.55);
 }
 
 .voice-recorder-hint {
-  color: rgba(255, 255, 255, 0.25);
+  color: rgba(245, 245, 240, 0.25);
   font-weight: 400;
 }
 
@@ -38,37 +38,37 @@
 }
 
 .voice-btn.record {
-  background: rgba(74, 222, 128, 0.12);
-  border-color: #4ade80;
-  color: #4ade80;
+  background: rgba(53, 242, 138, 0.12);
+  border-color: #35F28A;
+  color: #35F28A;
 }
 
 .voice-btn.record:hover {
-  background: rgba(74, 222, 128, 0.22);
+  background: rgba(53, 242, 138, 0.22);
 }
 
 .voice-btn.stop {
-  background: rgba(255, 68, 68, 0.12);
-  border-color: #ff4444;
-  color: #ff4444;
+  background: rgba(255, 77, 77, 0.12);
+  border-color: #FF4D4D;
+  color: #FF4D4D;
   padding: 0.35rem 0.7rem;
 }
 
 .voice-btn.stop:hover {
-  background: rgba(255, 68, 68, 0.22);
+  background: rgba(255, 77, 77, 0.22);
 }
 
 .voice-btn.clear {
   background: transparent;
-  border-color: #333;
-  color: rgba(255, 255, 255, 0.35);
+  border-color: rgba(245, 245, 240, 0.16);
+  color: rgba(245, 245, 240, 0.35);
   padding: 0.3rem 0.6rem;
   font-size: 0.75rem;
 }
 
 .voice-btn.clear:hover {
-  border-color: #555;
-  color: rgba(255, 255, 255, 0.6);
+  border-color: rgba(245, 245, 240, 0.16);
+  color: rgba(245, 245, 240, 0.6);
 }
 
 .voice-recording-row {
@@ -88,7 +88,7 @@
 
 .voice-recording-countdown {
   font-size: 0.83rem;
-  color: #ff6b6b;
+  color: #FF4D4D;
   font-variant-numeric: tabular-nums;
   min-width: 90px;
 }
@@ -98,7 +98,7 @@
   align-items: center;
   gap: 0.5rem;
   font-size: 0.83rem;
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(245, 245, 240, 0.45);
 }
 
 .voice-spinner {
@@ -119,7 +119,7 @@
 
 .voice-done-text {
   font-size: 0.83rem;
-  color: #4ade80;
+  color: #35F28A;
   flex: 1;
 }
 
@@ -132,5 +132,21 @@
   align-items: center;
   gap: 0.75rem;
   font-size: 0.83rem;
-  color: #ff6b6b;
+  color: #FF4D4D;
 }
+
+/* ── Inline lucide icon alignment (replaces former emoji glyphs) ── */
+.voice-recorder-label,
+.voice-btn,
+.voice-recording-row,
+.voice-uploading,
+.voice-done-row,
+.voice-error-row,
+.voice-error-row span { display: inline-flex; align-items: center; gap: 0.4em; }
+.voice-recording-row,
+.voice-done-row,
+.voice-uploading { display: flex; }
+.voice-spinner svg { animation: spin 1s linear infinite; }
+.voice-btn svg,
+.voice-done-icon svg,
+.voice-recording-pulse svg { flex-shrink: 0; }

@@ -5,7 +5,7 @@
 .incoming-screen {
   position: fixed;
   inset: 0;
-  background: linear-gradient(180deg, #1e3a8a 0%, #0f172a 60%, #0f172a 100%);
+  background: radial-gradient(70% 55% at 50% 0%, rgba(245,197,66,0.10) 0%, transparent 60%), linear-gradient(180deg, #141210 0%, #0D0D0D 60%, #080808 100%);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -20,7 +20,7 @@
 .incoming-bg-ring {
   position: absolute;
   border-radius: 50%;
-  border: 1px solid rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(245, 197, 66, 0.12);
   animation: expandRing 3s ease-out infinite;
   pointer-events: none;
 }
@@ -46,7 +46,7 @@
 .incoming-status {
   font-size: 0.82rem;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(245, 245, 240, 0.45);
   text-transform: uppercase;
   letter-spacing: 1.5px;
   animation: blink 1.8s ease-in-out infinite;
@@ -69,7 +69,7 @@
 .incoming-avatar-pulse {
   position: absolute;
   border-radius: 50%;
-  background: rgba(59, 130, 246, 0.15);
+  background: rgba(245, 197, 66, 0.15);
   animation: avatarPulse 2s ease-in-out infinite;
 }
 
@@ -79,12 +79,12 @@
 .incoming-avatar-pulse:nth-child(2) {
   width: 148px; height: 148px;
   animation-delay: 0.4s;
-  background: rgba(59, 130, 246, 0.1);
+  background: rgba(245, 197, 66, 0.1);
 }
 .incoming-avatar-pulse:nth-child(3) {
   width: 178px; height: 178px;
   animation-delay: 0.8s;
-  background: rgba(59, 130, 246, 0.06);
+  background: rgba(245, 197, 66, 0.06);
 }
 
 @keyframes avatarPulse {
@@ -96,23 +96,24 @@
   width: 96px;
   height: 96px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: linear-gradient(135deg, #F5C542 0%, #d9a72e 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 2.4rem;
   font-weight: 700;
-  color: #ffffff;
+  color: #0D0D0D;
   position: relative;
   z-index: 1;
   text-transform: uppercase;
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3), 0 8px 32px rgba(0,0,0,0.5);
+  box-shadow: 0 0 0 4px rgba(245, 197, 66, 0.3), 0 8px 32px rgba(0,0,0,0.5);
 }
 
 .incoming-avatar.unknown {
-  background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+  background: linear-gradient(135deg, #1F1F1F 0%, #0D0D0D 100%);
   font-size: 2.2rem;
-  box-shadow: 0 0 0 4px rgba(107, 114, 128, 0.25), 0 8px 32px rgba(0,0,0,0.5);
+  color: #F5F5F0;
+  box-shadow: 0 0 0 4px rgba(245, 245, 240, 0.16), 0 8px 32px rgba(0,0,0,0.5);
 }
 
 /* ── Caller info ─────────────────────────────────────────── */
@@ -124,21 +125,21 @@
 .incoming-name {
   font-size: 1.9rem;
   font-weight: 700;
-  color: #ffffff;
+  color: #F5F5F0;
   margin: 0 0 0.35rem 0;
   letter-spacing: -0.3px;
 }
 
 .incoming-relation {
   font-size: 0.875rem;
-  color: #60a5fa;
+  color: #F5C542;
   font-weight: 500;
   margin: 0 0 0.4rem 0;
 }
 
 .incoming-number {
   font-size: 1rem;
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(245, 245, 240, 0.45);
   font-family: 'Courier New', monospace;
   margin: 0;
   letter-spacing: 1px;
@@ -157,7 +158,7 @@
 
 .swipe-label {
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.3);
+  color: rgba(245, 245, 240, 0.3);
   text-transform: uppercase;
   letter-spacing: 0.8px;
   display: flex;
@@ -166,8 +167,8 @@
   gap: 0.3rem;
 }
 
-.swipe-label.decline { color: rgba(255, 100, 100, 0.55); }
-.swipe-label.answer  { color: rgba(96, 165, 250, 0.75); }
+.swipe-label.decline { color: rgba(255, 77, 77, 0.55); }
+.swipe-label.answer  { color: rgba(245, 197, 66, 0.75); }
 
 .swipe-label-icon { font-size: 1.1rem; }
 
@@ -177,9 +178,9 @@
   width: 100%;
   max-width: 320px;
   height: 68px;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(245, 245, 240, 0.06);
   border-radius: 50px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(245, 245, 240, 0.1);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -190,7 +191,7 @@
 /* center dashes */
 .swipe-track-label {
   font-size: 0.72rem;
-  color: rgba(255, 255, 255, 0.2);
+  color: rgba(245, 245, 240, 0.2);
   text-transform: uppercase;
   letter-spacing: 1px;
   pointer-events: none;
@@ -212,7 +213,7 @@
   width: 60px;
   height: 60px;
   border-radius: 50%;
-  background: #fff;
+  background: #F5F5F0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -229,13 +230,13 @@
 .swipe-pill:active { cursor: grabbing; }
 
 .swipe-pill.dragging-right {
-  background: #3b82f6;
-  box-shadow: 0 0 28px rgba(59, 130, 246, 0.7);
+  background: #F5C542;
+  box-shadow: 0 0 28px rgba(245, 197, 66, 0.7);
 }
 
 .swipe-pill.dragging-left {
-  background: #ef4444;
-  box-shadow: 0 0 28px rgba(239, 68, 68, 0.7);
+  background: #FF4D4D;
+  box-shadow: 0 0 28px rgba(255, 77, 77, 0.7);
 }
 
 /* snap-back transition — applied only when NOT dragging */
