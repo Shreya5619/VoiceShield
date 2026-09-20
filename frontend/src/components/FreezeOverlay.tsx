@@ -25,6 +25,14 @@ interface FreezeOverlayProps {
   claimedContactName?: string | null
   /** Whether a comparison is currently in progress (verificationState === 'comparing'). */
   verificationInProgress?: boolean
+  /**
+   * The selected contact's stored security question (FamilyContact.securityQuestion).
+   * Passed by the parent once the USER selects a claimed identity in the Protected
+   * view. When present and non-empty, the CALLER view displays and speaks this
+   * question aloud so the caller can answer it. Undefined/empty when no contact
+   * has been selected yet — in that case the caller view keeps its hold message.
+   */
+  securityQuestion?: string
 }
 
 function getRiskColor(level?: string): string {
@@ -149,9 +157,20 @@ export const FreezeOverlay: React.FC<FreezeOverlayProps> = ({
   onSkipVerification,
   claimedContactName = null,
   verificationInProgress = false,
+  securityQuestion,
 }) => {
   const { speak, cancel, speakingIndex } = useSpeech(languageCode)
   const [activeView, setActiveView] = useState<'protected' | 'caller'>('protected')
+
+  // Distinct speak index for the caller-view security question so it never
+  // collides with the hold-message index (-1) or the numbered verification
+  // questions (0..n).
+  const SECURITY_QUESTION_INDEX = -2
+  // Non-empty security question (trimmed) or null when none has been selected.
+  const trimmedSecurityQuestion =
+    typeof securityQuestion === 'string' && securityQuestion.trim().length > 0
+      ? securityQuestion.trim()
+      : null
 
   // The claimed-identity picker is available only when the parent wires up the
   // handlers and provides at least one enrolled contact. Everything below is
@@ -229,10 +248,32 @@ export const FreezeOverlay: React.FC<FreezeOverlayProps> = ({
   const hasContent      = !!(result?.summary || (result?.verification_questions?.length ?? 0) > 0)
   const showErrorBanner = !!(result?.analysis_error && !hasContent)
 
+  // Tracks the last security-question text spoken on the caller view so the
+  // question auto-speaks only when the text changes or the view switches to
+  // caller — not on every render.
+  const lastSpokenQuestionRef = useRef<string | null>(null)
+
   useEffect(() => {
     if (!hasContent) return
 
     const hindi = isHindi(languageCode)
+
+    // On the caller view, a selected contact's security question takes
+    // precedence over the generic hold message: speak the QUESTION so the
+    // caller hears the specific thing they must answer. Guard with a ref so it
+    // speaks once per (view enter / question change), not every render.
+    if (activeView === 'caller' && trimmedSecurityQuestion) {
+      if (lastSpokenQuestionRef.current !== trimmedSecurityQuestion) {
+        lastSpokenQuestionRef.current = trimmedSecurityQuestion
+        speak(trimmedSecurityQuestion, SECURITY_QUESTION_INDEX)
+      }
+      return
+    }
+
+    // Leaving the caller view (or no question present) resets the guard so the
+    // question will speak again next time the caller view is shown.
+    lastSpokenQuestionRef.current = null
+
     const summary = result?.summary?.slice(0, 600) ?? ''
     const speechText = activeView === 'protected'
       ? hindi
@@ -243,7 +284,7 @@ export const FreezeOverlay: React.FC<FreezeOverlayProps> = ({
         : 'Your call has been put on hold due to suspicious activity. Please answer the verification questions.'
 
     speak(speechText, -1)
-  }, [activeView, hasContent, languageCode, result?.summary, speak])
+  }, [activeView, hasContent, languageCode, result?.summary, speak, trimmedSecurityQuestion])
 
   const handleDismiss = useCallback(() => {
     cancel()
@@ -295,7 +336,7 @@ export const FreezeOverlay: React.FC<FreezeOverlayProps> = ({
               className={`freeze-view-tab ${activeView === 'protected' ? 'active' : ''}`}
               onClick={() => setActiveView('protected')}
             >
-              {isHindi(languageCode) ? '🛡️ आपकी स्क्रीन' : '🛡️ Protected View'}
+              {isHindi(languageCode) ? '🛡️ आपकी स्क्रीन' : '🛡️ Your Screen'}
             </button>
             <button
               type="button"
@@ -304,7 +345,7 @@ export const FreezeOverlay: React.FC<FreezeOverlayProps> = ({
               className={`freeze-view-tab ${activeView === 'caller' ? 'active' : ''}`}
               onClick={() => setActiveView('caller')}
             >
-              {isHindi(languageCode) ? '📞 कॉलर स्क्रीन' : '📞 Caller View'}
+              {isHindi(languageCode) ? '📞 कॉलर स्क्रीन' : '📞 Caller Screen'}
             </button>
           </div>
         )}
@@ -455,12 +496,25 @@ export const FreezeOverlay: React.FC<FreezeOverlayProps> = ({
               🔊 {isHindi(languageCode) ? 'संदेश पढ़कर सुनाएं' : 'Read hold message aloud'}
             </button>
 
-            {/* Same claimed-identity picker surfaced on the caller view */}
-            {canPickIdentity && (
-              <>
-                <div className="freeze-divider" />
-                {renderIdentityPicker()}
-              </>
+            {/* Selected contact's stored security question — shown ONLY on the
+                caller view once the USER picks a claimed identity in the
+                Protected view. The caller reads/hears the specific question
+                and answers it. No identity picker is rendered here. */}
+            {trimmedSecurityQuestion && (
+              <div className="caller-security-question" role="group" aria-label="Security question">
+                <p className="caller-security-question-label">
+                  {isHindi(languageCode) ? 'सुरक्षा प्रश्न' : 'Security question'}
+                </p>
+                <p className="caller-security-question-text">{trimmedSecurityQuestion}</p>
+                <button
+                  type="button"
+                  className="caller-speak-btn"
+                  onClick={() => speak(trimmedSecurityQuestion, SECURITY_QUESTION_INDEX)}
+                  aria-pressed={speakingIndex === SECURITY_QUESTION_INDEX}
+                >
+                  🔊 {isHindi(languageCode) ? 'प्रश्न पढ़कर सुनाएं' : 'Read question aloud'}
+                </button>
+              </div>
             )}
           </section>
         )}

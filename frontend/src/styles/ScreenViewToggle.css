@@ -242,3 +242,33 @@
 .svt-protected-view {
   width: 100%;
 }
+
+/* --- Caller-facing screen banner --- */
+.svt-caller-banner {
+  /* Pull out to the card edges to form a full-width bar at the top. Offsets
+     match the .svt-caller-view padding (18px) and account for the parent gap. */
+  margin: -18px -18px -2px;
+  padding: 12px 18px;
+  border-radius: 16px 16px 0 0;
+  border-bottom: 1px solid rgba(255, 191, 71, 0.35);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 191, 71, 0.22),
+    rgba(255, 158, 71, 0.12)
+  );
+  color: #ffd591;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.svt-caller-banner-sub {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: rgba(255, 213, 145, 0.75);
+  letter-spacing: 0.02em;
+}

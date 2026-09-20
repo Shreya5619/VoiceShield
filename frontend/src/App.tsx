@@ -31,13 +31,22 @@ function App() {
   const [phoneInput, setPhoneInput] = useState(phone)
   const [nameInput, setNameInput] = useState(name)
   const [activeTab, setActiveTab] = useState<AppTab>('call')
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
+  const [authError, setAuthError] = useState('')
 
   const handleLogin = (event: React.FormEvent) => {
     event.preventDefault()
+    setAuthError('')
     const normalized = normalizePhone(phoneInput)
-    if (normalized.length < 7) return
+    if (normalized.length < 7) {
+      setAuthError('Please enter a valid mobile number.')
+      return
+    }
     const trimmedName = nameInput.trim()
-    if (!trimmedName) return
+    if (!trimmedName) {
+      setAuthError('Please enter your name.')
+      return
+    }
     localStorage.setItem(PHONE_STORAGE_KEY, normalized)
     localStorage.setItem(NAME_STORAGE_KEY, trimmedName)
     setPhone(normalized)
@@ -54,41 +63,124 @@ function App() {
   }
 
   if (!phone) {
+    const isSignup = authMode === 'signup'
     return (
-      <main className="phone-login">
-        <div className="phone-login-card">
-          <div className="phone-login-logo">
-            <ShieldIcon />
-          </div>
-          <h1>Welcome to VoiceShield</h1>
-          <p>Protect your calls with AI-powered scam detection and voice verification.</p>
-          <form onSubmit={handleLogin}>
-            <div>
-              <label htmlFor="full-name">Your name</label>
-              <input
-                id="full-name"
-                type="text"
-                autoComplete="name"
-                placeholder="Jane Doe"
-                value={nameInput}
-                onChange={(event) => setNameInput(event.target.value)}
-                required
-              />
+      <main className="vs-landing">
+        <div className="vs-landing-grid">
+          {/* ── Left: pitch ─────────────────────────────── */}
+          <section className="vs-hero">
+            <div className="vs-brand">
+              <span className="vs-brand-mark">
+                <ShieldIcon />
+              </span>
+              <span className="vs-brand-name">VoiceShield</span>
+              <span className="vs-brand-badge">BETA</span>
             </div>
-            <div>
-              <label htmlFor="mobile-number">Mobile number</label>
-              <input
-                id="mobile-number"
-                type="tel"
-                autoComplete="tel"
-                placeholder="+1 (555) 123-4567"
-                value={phoneInput}
-                onChange={(event) => setPhoneInput(event.target.value)}
-                required
-              />
+
+            <h1 className="vs-hero-title">
+              Know who&apos;s really<br />
+              <span className="vs-accent">on the line.</span>
+            </h1>
+            <p className="vs-hero-sub">
+              Real-time scam detection and voice verification for every call.
+              VoiceShield listens, scores the risk, and confirms the caller is
+              who they claim to be — before you say a word.
+            </p>
+
+            <ul className="vs-hero-points">
+              <li>
+                <span className="vs-tick">✓</span>
+                Live scam scoring while the call is happening
+              </li>
+              <li>
+                <span className="vs-tick">✓</span>
+                Voice fingerprint verification for trusted contacts
+              </li>
+              <li>
+                <span className="vs-tick">✓</span>
+                Instant alerts the moment something sounds off
+              </li>
+            </ul>
+          </section>
+
+          {/* ── Right: auth card ────────────────────────── */}
+          <section className="vs-auth-card">
+            <div className="vs-auth-head">
+              <h2>{isSignup ? 'Create your account' : 'Welcome back'}</h2>
+              <p>
+                {isSignup
+                  ? 'Set up your profile to start protecting your calls.'
+                  : 'Log in with your name and mobile number to continue.'}
+              </p>
             </div>
-            <button type="submit">Get Started</button>
-          </form>
+
+            <div className="vs-auth-toggle" role="tablist" aria-label="Authentication mode">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={!isSignup}
+                className={!isSignup ? 'active' : ''}
+                onClick={() => { setAuthMode('login'); setAuthError('') }}
+              >
+                Log in
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={isSignup}
+                className={isSignup ? 'active' : ''}
+                onClick={() => { setAuthMode('signup'); setAuthError('') }}
+              >
+                Sign up
+              </button>
+            </div>
+
+            <form className="vs-auth-form" onSubmit={handleLogin}>
+              <div className="vs-field">
+                <label htmlFor="full-name">Your name</label>
+                <input
+                  id="full-name"
+                  type="text"
+                  autoComplete="name"
+                  placeholder="Jane Doe"
+                  value={nameInput}
+                  onChange={(event) => setNameInput(event.target.value)}
+                  required
+                />
+              </div>
+              <div className="vs-field">
+                <label htmlFor="mobile-number">Mobile number</label>
+                <input
+                  id="mobile-number"
+                  type="tel"
+                  autoComplete="tel"
+                  placeholder="+1 (555) 123-4567"
+                  value={phoneInput}
+                  onChange={(event) => setPhoneInput(event.target.value)}
+                  required
+                />
+              </div>
+
+              {authError && <p className="vs-auth-error" role="alert">{authError}</p>}
+
+              <button type="submit" className="vs-auth-submit">
+                {isSignup ? 'Create account' : 'Log in'}
+              </button>
+            </form>
+
+            <p className="vs-auth-switch">
+              {isSignup ? 'Already have an account?' : 'New to VoiceShield?'}{' '}
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode(isSignup ? 'login' : 'signup')
+                  setAuthError('')
+                }}
+              >
+                {isSignup ? 'Log in' : 'Create one'}
+              </button>
+            </p>
+          </section>
         </div>
       </main>
     )

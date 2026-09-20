@@ -1346,6 +1346,7 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
                 onSkipVerification: handleIdentitySkip,
                 claimedContactName: selectedContact?.name ?? null,
                 verificationInProgress: verificationState === 'comparing',
+                securityQuestion: selectedContact?.securityQuestion || undefined,
               }
             : {})}
         />

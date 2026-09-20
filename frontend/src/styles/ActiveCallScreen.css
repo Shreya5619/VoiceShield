@@ -543,6 +543,41 @@
   border-color: rgba(255,255,255,0.28);
 }
 
+/* Caller-view security question card — the selected contact's stored question */
+.caller-security-question {
+  margin-top: 1.25rem;
+  width: 100%;
+  max-width: 420px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 1rem 1.1rem 1.1rem;
+  border: 1px solid rgba(96,165,250,0.4);
+  border-radius: 12px;
+  background: rgba(96,165,250,0.1);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.caller-security-question-label {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #93c5fd;
+}
+
+.caller-security-question-text {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.45;
+  color: rgba(255,255,255,0.95);
+}
+
 /* questions */
 .freeze-questions {
   margin: 0;

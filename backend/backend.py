@@ -996,13 +996,21 @@ async def analyze_scam(request_data: AnalyzeScamRequest):
                         risk_level=analysis.get("risk_level"),
                     )
 
+                # Log the exact status + body so non-200 responses (e.g. 503) are diagnosable
                 error_detail = analysis.get("detail", f"AgentCore returned HTTP {response.status_code}")
+                print(
+                    f"❌ AgentCore non-200 response: status={response.status_code} "
+                    f"detail={error_detail!r} body={response.text[:500]!r}"
+                )
                 return AnalyzeScamResponse(**pred_result, analysis_error=f"AgentCore error: {error_detail}")
         except httpx.TimeoutException:
+            print(f"❌ AgentCore request timed out (url={agentcore_url})")
             return AnalyzeScamResponse(**pred_result, analysis_error="AgentCore request timed out after 30s")
-        except httpx.ConnectError:
+        except httpx.ConnectError as e:
+            print(f"❌ AgentCore connection refused (url={agentcore_url}): {e}")
             return AnalyzeScamResponse(**pred_result, analysis_error="AgentCore service unavailable (connection refused)")
         except Exception as e:
+            print(f"❌ AgentCore call raised {type(e).__name__}: {e}")
             return AnalyzeScamResponse(**pred_result, analysis_error=f"AgentCore error: {str(e)}")
 
 @app.get("/api/health")

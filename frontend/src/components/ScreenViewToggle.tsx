@@ -160,6 +160,10 @@ export const CallerSimulationView: React.FC<CallerSimulationViewProps> = ({
 
   return (
     <section className="svt-caller-view" aria-label="Caller simulation">
+      <div className="svt-caller-banner" role="note" aria-label="Caller-facing screen">
+        📞 Caller's View
+        <span className="svt-caller-banner-sub">This is what the caller sees</span>
+      </div>
       <header className="svt-caller-header">
         <span className="svt-caller-avatar" aria-hidden="true">
           👤
