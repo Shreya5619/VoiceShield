@@ -11,6 +11,7 @@ import './App.css'
 const SHOW_DESIGN_DEMO = false
 
 const PHONE_STORAGE_KEY = 'voiceshield_user_phone'
+const NAME_STORAGE_KEY = 'voiceshield_user_name'
 
 function normalizePhone(phone: string): string {
   return phone.replace(/[^\d+]/g, '')
@@ -26,15 +27,21 @@ const ShieldIcon = () => (
 
 function App() {
   const [phone, setPhone] = useState(() => localStorage.getItem(PHONE_STORAGE_KEY) ?? '')
+  const [name, setName] = useState(() => localStorage.getItem(NAME_STORAGE_KEY) ?? '')
   const [phoneInput, setPhoneInput] = useState(phone)
+  const [nameInput, setNameInput] = useState(name)
   const [activeTab, setActiveTab] = useState<AppTab>('call')
 
   const handleLogin = (event: React.FormEvent) => {
     event.preventDefault()
     const normalized = normalizePhone(phoneInput)
     if (normalized.length < 7) return
+    const trimmedName = nameInput.trim()
+    if (!trimmedName) return
     localStorage.setItem(PHONE_STORAGE_KEY, normalized)
+    localStorage.setItem(NAME_STORAGE_KEY, trimmedName)
     setPhone(normalized)
+    setName(trimmedName)
   }
 
   const handleGoToContacts = useCallback(() => {
@@ -56,6 +63,18 @@ function App() {
           <h1>Welcome to VoiceShield</h1>
           <p>Protect your calls with AI-powered scam detection and voice verification.</p>
           <form onSubmit={handleLogin}>
+            <div>
+              <label htmlFor="full-name">Your name</label>
+              <input
+                id="full-name"
+                type="text"
+                autoComplete="name"
+                placeholder="Jane Doe"
+                value={nameInput}
+                onChange={(event) => setNameInput(event.target.value)}
+                required
+              />
+            </div>
             <div>
               <label htmlFor="mobile-number">Mobile number</label>
               <input
@@ -79,7 +98,7 @@ function App() {
     <ErrorBoundary>
       <AppShell activeTab={activeTab} onTabChange={setActiveTab}>
         {activeTab === 'call' ? (
-          <CallTab ownerPhone={phone} onGoToContacts={handleGoToContacts} />
+          <CallTab ownerPhone={phone} ownerName={name} onGoToContacts={handleGoToContacts} />
         ) : (
           activeTab === 'contacts' ? <ContactsTab ownerPhone={phone} /> : <InboxTab ownerPhone={phone} />
         )}

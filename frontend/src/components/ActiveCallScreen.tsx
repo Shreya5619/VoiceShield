@@ -24,6 +24,8 @@ interface ActiveCallScreenProps {
   onEndCall: () => void
   /** Owner's phone number — used to load their self-embedding from localStorage */
   ownerPhone?: string
+  /** Owner's name — included in alerts sent to emergency contacts */
+  ownerName?: string
   /** User's preferred language for AI responses: 'en' or 'hi' */
   languageCode?: string
 }
@@ -94,6 +96,7 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
   caller,
   onEndCall,
   ownerPhone,
+  ownerName,
   languageCode = 'en',  // default to English
 }) => {
 
@@ -136,12 +139,46 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
 
   const hasRealResultRef = useRef(false)
   const analyzingRef     = useRef(false)
+  // Guard so the emergency-contact alert is sent only once per call
+  const spamAlertSentRef = useRef(false)
+
+  /* ── Notify emergency contacts (fire-and-forget, deduped) ─────────────── */
+  const sendSpamAlert = useCallback(
+    async (result: ScamAnalysisResult | null) => {
+      if (spamAlertSentRef.current) return
+      if (!ownerPhone) return
+      spamAlertSentRef.current = true
+      try {
+        await fetch(apiUrl('/api/spam-alerts'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            owner_phone: ownerPhone,
+            owner_name: ownerName || 'A VoiceShield user',
+            caller_phone: caller.phone,
+            caller_name: caller.name,
+            scam_probability: scamProb,
+            risk_level: result?.risk_level,
+            summary: result?.summary || '',
+            idempotency_key: `${ownerPhone}-${caller.id}`,
+          }),
+        })
+      } catch {
+        // Allow a retry on a later trigger if this request failed
+        spamAlertSentRef.current = false
+      }
+    },
+    [ownerPhone, ownerName, caller, scamProb],
+  )
 
   useEffect(() => {
     if (bedrockResult?.summary || (bedrockResult?.verification_questions?.length ?? 0) > 0) {
       setShowFreeze(true)
+      // Alert emergency contacts as soon as a scam is confirmed — independent
+      // of whether the user later continues the call or marks it as spam.
+      void sendSpamAlert(bedrockResult)
     }
-  }, [bedrockResult])
+  }, [bedrockResult, sendSpamAlert])
 
   /* ── Privacy / diarization state ─────────────────────────────────────── */
   const [privacyMode,  setPrivacyMode]  = useState<'active' | 'fallback' | 'off'>('off')
@@ -535,6 +572,7 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
     hasRealResultRef.current = false
     analyzingRef.current = false
     aiWarningTriggeredRef.current = false
+    spamAlertSentRef.current = false
     setShowAiWarning(false)
     setAiWarningData(null)
     onEndCall()
@@ -542,23 +580,15 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
 
   const handleMarkAsSpam = useCallback(async () => {
     try {
-      await fetch(apiUrl('/api/spam-alerts'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          owner_phone: ownerPhone,
-          caller_phone: caller.phone,
-          caller_name: caller.name,
-          scam_probability: scamProb,
-          risk_level: bedrockResult?.risk_level,
-          summary: bedrockResult?.summary || '',
-          idempotency_key: `${ownerPhone}-${caller.id}-${Date.now()}`,
-        }),
-      })
+      // The alert is normally sent automatically when the scam is detected.
+      // This is a safety net in case that hasn't happened yet (guarded so it
+      // won't create a duplicate). The stable idempotency_key also prevents
+      // the backend from creating a second alert for the same call.
+      await sendSpamAlert(bedrockResult)
     } finally {
       handleEndCall()
     }
-  }, [ownerPhone, caller, scamProb, bedrockResult, handleEndCall])
+  }, [sendSpamAlert, bedrockResult, handleEndCall])
 
   /* ── Clock ────────────────────────────────────────────────────────────── */
   const [clockStr, setClockStr] = useState('')

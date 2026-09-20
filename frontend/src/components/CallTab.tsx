@@ -14,10 +14,11 @@ type CallPhase = 'picking' | 'incoming' | 'active'
 
 interface CallTabProps {
   ownerPhone: string
+  ownerName?: string
   onGoToContacts: () => void
 }
 
-export const CallTab: React.FC<CallTabProps> = ({ ownerPhone, onGoToContacts }) => {
+export const CallTab: React.FC<CallTabProps> = ({ ownerPhone, ownerName, onGoToContacts }) => {
   const [phase, setPhase] = useState<CallPhase>('picking')
   const [caller, setCaller] = useState<CallerInfo | null>(null)
   const [languageCode, setLanguageCode] = useState('en')
@@ -105,6 +106,7 @@ export const CallTab: React.FC<CallTabProps> = ({ ownerPhone, onGoToContacts }) 
       <ActiveCallScreen
         caller={caller}
         ownerPhone={ownerPhone}
+        ownerName={ownerName}
         onEndCall={handleEndCall}
         languageCode={languageCode}
       />

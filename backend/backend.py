@@ -668,6 +668,7 @@ async def decide_voice_share(share_id: str, decision: VoiceShareDecision):
 
 class SpamAlertRequest(BaseModel):
     owner_phone: str
+    owner_name: str = "A VoiceShield user"
     caller_phone: str = "Unknown caller"
     caller_name: str = "Unknown caller"
     scam_probability: float = 0.0
@@ -695,6 +696,8 @@ async def create_spam_alert(request_data: SpamAlertRequest):
         ).get("Items", [])
         emergency_contacts = [contact for contact in contacts if contact.get("is_emergency_contact")]
         created_at = datetime.now(timezone.utc).isoformat()
+        owner_name = request_data.owner_name or "A VoiceShield user"
+
         owner_alert = decimalize({
             "recipient_phone": request_data.owner_phone, "id": alert_id,
             "item_type": "spam_alert", "title": "Spam call blocked",
@@ -705,14 +708,29 @@ async def create_spam_alert(request_data: SpamAlertRequest):
             "risk_level": request_data.risk_level or "HIGH",
         })
         inbox_table().put_item(Item=owner_alert, ConditionExpression="attribute_not_exists(id)")
+
+        # Build the emergency-contact message, naming the relative who was targeted
+        detail = request_data.summary.strip() if request_data.summary else ""
+        emergency_message = (
+            f"{owner_name} may be facing a scam call from {request_data.caller_name}."
+        )
+        if detail:
+            emergency_message += f" Details: {detail}"
+        emergency_message += " Please check on them."
+
+        recipient_count = 0
         for contact in emergency_contacts:
             emergency_alert = dict(owner_alert)
             emergency_alert["recipient_phone"] = contact["phone"]
             emergency_alert["id"] = f"{alert_id}-{contact['id']}"
             emergency_alert["title"] = "Emergency scam alert"
+            emergency_alert["message"] = emergency_message
+            emergency_alert["owner_name"] = owner_name
             inbox_table().put_item(Item=emergency_alert)
-            send_push(contact["phone"], emergency_alert["title"], emergency_alert["message"])
-        return SpamAlertResponse(alert_id=alert_id, recipient_count=len(emergency_contacts))
+            send_push(contact["phone"], emergency_alert["title"], emergency_message)
+            recipient_count += 1
+
+        return SpamAlertResponse(alert_id=alert_id, recipient_count=recipient_count)
     except Exception as exc:
         if "ConditionalCheckFailed" in str(exc):
             return SpamAlertResponse(alert_id=alert_id, recipient_count=0, duplicate=True)
@@ -1068,7 +1086,7 @@ async def generate_speaker_embedding(audio: UploadFile = File(...)):
         )
 
 
-# ---------------------------------------------------------------------------
+# ---------------------------------f------------------------------------------
 # Voice comparison endpoint
 # ---------------------------------------------------------------------------
 
@@ -1553,19 +1571,6 @@ async def analyze_audio_segment(
     )
 
 
-def run_backend():
-    """Run the FastAPI backend server"""
-    import uvicorn
-    port = int(os.getenv("BACKEND_PORT", 5000))
-    print(f"🚀 Starting FastAPI backend on port {port}")
-    print(f"✓ Scam prediction API: POST http://localhost:{port}/api/predict-scam")
-    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
-
-if __name__ == "__main__":
-    run_backend()
-
-
-
 # ---------------------------------------------------------------------------
 # IndicTTS Deepfake Detector - AI-generated speech detection
 # ---------------------------------------------------------------------------
@@ -1936,3 +1941,7 @@ def run_backend():
     print(f"✓ Deepfake detection API: POST http://localhost:{port}/api/detect-deepfake")
     print(f"✓ Combined analysis API: POST http://localhost:{port}/api/analyze-combined")
     uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
+
+
+if __name__ == "__main__":
+    run_backend()
