@@ -1,0 +1,312 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Extract a shared `encodeWav` utility": [
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888240135
+      },
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888252894
+      },
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888535342
+      }
+    ],
+    "1.2 Implement `RollingSnippetBuffer` service": [
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888240242
+      },
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888541641
+      },
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888727438
+      }
+    ],
+    "2.1 Create the `useVoiceVerification` hook": [
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888240342
+      },
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888752069
+      },
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888931597
+      }
+    ],
+    "2.2 Implement on-demand comparison against `/api/verify-speaker`": [
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888240408
+      },
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888940357
+      },
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789889120755
+      }
+    ],
+    "2.3 Implement `markVerified` and `reset` lifecycle": [
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888240478
+      },
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888941357
+      },
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789889122099
+      }
+    ],
+    "3.1 Implement severity mappings and `fuseRisk`": [
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888240552
+      },
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888543110
+      },
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888726005
+      }
+    ],
+    "4.1 Create `detectAiVoice` frontend adapter": [
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888240622
+      },
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888544050
+      },
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888728327
+      }
+    ],
+    "5.1 Implement `IdentityPrompt`": [
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888240694
+      },
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888545481
+      },
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888730591
+      }
+    ],
+    "6.1 Implement `SecurityQuestionOverlay`": [
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888240760
+      },
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888753141
+      },
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888932504
+      }
+    ],
+    "7.1 Implement `CombinedRiskPanel`": [
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888240830
+      },
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888546188
+      },
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888729773
+      }
+    ],
+    "8.1 Implement the shared call-security context": [
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888240906
+      },
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888744326
+      },
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888933464
+      }
+    ],
+    "8.2 Implement `ScreenViewToggle` and caller view": [
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888240973
+      },
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888942367
+      },
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789889122860
+      }
+    ],
+    "9. Checkpoint - Ensure all component/service tests pass": [
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888241043
+      },
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789889168080
+      }
+    ],
+    "10.1 Add the ordered EscalationStage reducer": [
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888241124
+      }
+    ],
+    "10.2 Replace `useVoiceMatch` and wire caller audio into the buffer": [
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888241197
+      }
+    ],
+    "10.3 Wire detect→suspect and the identity/verify path": [
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888241275
+      }
+    ],
+    "10.4 Apply two-tier wording and suppress scam APIs when verified": [
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888241345
+      }
+    ],
+    "12. Final checkpoint - Ensure all tests pass and clean up": [
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888241424
+      }
+    ],
+    "3. Implement the RiskEngine pure module": [
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888726158
+      }
+    ],
+    "1. Extract shared WAV util and build the RollingSnippetBuffer service": [
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888727522
+      }
+    ],
+    "4. Implement the AI-voice detection adapter": [
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888728403
+      }
+    ],
+    "7. Build the CombinedRiskPanel component": [
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888729848
+      }
+    ],
+    "5. Build the IdentityPrompt component": [
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888730670
+      }
+    ],
+    "6. Evolve `VoiceMismatchOverlay` into `SecurityQuestionOverlay`": [
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789888932566
+      }
+    ],
+    "2. Refactor `useVoiceMatch` into on-demand `useVoiceVerification`": [
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789889122177
+      }
+    ],
+    "8. Build the Protected/Caller ScreenView toggle and shared context": [
+      {
+        "executionId": "e5193ccd-eda7-48ed-a71d-856dc891d226",
+        "chatSessionId": "sess_e9eb9a74-4d6f-44ea-b5cb-5d261fcdaaf3",
+        "timestamp": 1789889122959
+      }
+    ]
+  }
+}

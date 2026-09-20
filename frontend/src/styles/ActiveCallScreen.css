@@ -1114,6 +1114,50 @@
 }
 
 /* ============================================================
+   SecurityQuestionOverlay additions (tentative banner + typed answer)
+   ============================================================ */
+
+.sqo-banner {
+  margin: 0.35rem 0 0.15rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(250, 204, 21, 0.08);
+  border: 1px solid rgba(250, 204, 21, 0.3);
+  border-radius: 8px;
+  color: #facc15;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.sqo-answer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
+}
+
+.sqo-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.6rem 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  color: #ffffff;
+  font-size: 0.9rem;
+  outline: none;
+}
+
+.sqo-input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.sqo-input:focus {
+  border-color: rgba(59, 130, 246, 0.6);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ============================================================
    Call verified badge
    ============================================================ */
 
@@ -1337,4 +1381,21 @@
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.6);
+}
+
+/* ============================================================
+   Two-tier impersonation banner (unknown callers, pre-protect)
+   ============================================================ */
+
+.impersonation-banner {
+  margin-top: 0.5rem;
+  padding: 0.4rem 1rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-align: center;
+  background: rgba(250, 204, 21, 0.12);
+  border: 1px solid rgba(250, 204, 21, 0.4);
+  color: #facc15;
 }

@@ -1,5 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { ScamAnalysisResult } from '../types'
+import type { FamilyContact } from '../hooks/useFamilyContacts'
+import '../styles/IdentityPrompt.css'
 // styles live in ActiveCallScreen.css — already imported by ActiveCallScreen
 
 interface FreezeOverlayProps {
@@ -9,6 +11,20 @@ interface FreezeOverlayProps {
   onResumeCall: () => void
   onMarkAsSpam: () => void
   languageCode?: string  // 'en' or 'hi'
+  /**
+   * Enrolled contacts (already filtered to those with a speakerEmbedding by the
+   * parent). When provided and non-empty, the "Who does this caller claim to be?"
+   * picker renders inside the freeze card. Omit to keep the overlay unchanged.
+   */
+  enrolledContacts?: FamilyContact[]
+  /** Selecting a contact triggers on-demand voice verification. */
+  onSelectClaimedIdentity?: (contact: FamilyContact) => void
+  /** Skip dismisses verification and continues monitoring. */
+  onSkipVerification?: () => void
+  /** Name of the contact already selected — shows a status line instead of the picker. */
+  claimedContactName?: string | null
+  /** Whether a comparison is currently in progress (verificationState === 'comparing'). */
+  verificationInProgress?: boolean
 }
 
 function getRiskColor(level?: string): string {
@@ -128,9 +144,87 @@ export const FreezeOverlay: React.FC<FreezeOverlayProps> = ({
   onResumeCall,
   onMarkAsSpam,
   languageCode = 'en',
+  enrolledContacts,
+  onSelectClaimedIdentity,
+  onSkipVerification,
+  claimedContactName = null,
+  verificationInProgress = false,
 }) => {
   const { speak, cancel, speakingIndex } = useSpeech(languageCode)
   const [activeView, setActiveView] = useState<'protected' | 'caller'>('protected')
+
+  // The claimed-identity picker is available only when the parent wires up the
+  // handlers and provides at least one enrolled contact. Everything below is
+  // guarded on this flag so the overlay renders exactly as before when omitted.
+  const canPickIdentity =
+    !!onSelectClaimedIdentity &&
+    !!onSkipVerification &&
+    Array.isArray(enrolledContacts) &&
+    enrolledContacts.length > 0
+
+  const renderIdentityPicker = () => {
+    if (!canPickIdentity) return null
+
+    const hindi = isHindi(languageCode)
+    const heading = hindi
+      ? 'यह कॉलर कौन होने का दावा करता है?'
+      : 'Who does this caller claim to be?'
+    const skipLabel = hindi ? 'सत्यापन छोड़ें' : 'Skip verification'
+
+    // A contact has already been selected → show status instead of the picker.
+    if (claimedContactName) {
+      const verifyingText = hindi
+        ? `कॉलर को ${claimedContactName} के रूप में सत्यापित किया जा रहा है…`
+        : `Verifying caller as ${claimedContactName}…`
+      return (
+        <div className="freeze-section freeze-identity-status" role="status">
+          <p className="freeze-section-title">
+            {verificationInProgress ? '🔄 ' : '🔎 '}{verifyingText}
+          </p>
+        </div>
+      )
+    }
+
+    return (
+      <div className="freeze-section freeze-identity-picker">
+        <p className="freeze-section-title">{heading}</p>
+        <ul className="identity-prompt-list" aria-label={heading}>
+          {enrolledContacts!.map((contact) => (
+            <li key={contact.id}>
+              <button
+                type="button"
+                className="identity-prompt-contact"
+                onClick={() => onSelectClaimedIdentity!(contact)}
+                aria-label={`Verify caller as ${contact.name}${
+                  contact.relation ? `, ${contact.relation}` : ''
+                }`}
+              >
+                <span className="identity-prompt-avatar" aria-hidden="true">
+                  {contact.name.charAt(0).toUpperCase()}
+                </span>
+                <span className="identity-prompt-contact-info">
+                  <span className="identity-prompt-contact-name">{contact.name}</span>
+                  {contact.relation && (
+                    <span className="identity-prompt-contact-relation">
+                      {contact.relation}
+                    </span>
+                  )}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        <button
+          type="button"
+          className="identity-prompt-skip"
+          onClick={() => onSkipVerification!()}
+          aria-label="Skip verification and continue the call"
+        >
+          {skipLabel}
+        </button>
+      </div>
+    )
+  }
 
   const hasContent      = !!(result?.summary || (result?.verification_questions?.length ?? 0) > 0)
   const showErrorBanner = !!(result?.analysis_error && !hasContent)
@@ -313,6 +407,14 @@ export const FreezeOverlay: React.FC<FreezeOverlayProps> = ({
               </div>
             )}
 
+            {/* Claimed-identity picker (unknown callers only, when wired) */}
+            {canPickIdentity && (
+              <>
+                <div className="freeze-divider" />
+                {renderIdentityPicker()}
+              </>
+            )}
+
             {hasContent && (
               <div className="freeze-actions">
                 <button className="freeze-resume-btn" onClick={handleResumeCall}>
@@ -352,6 +454,14 @@ export const FreezeOverlay: React.FC<FreezeOverlayProps> = ({
             >
               🔊 {isHindi(languageCode) ? 'संदेश पढ़कर सुनाएं' : 'Read hold message aloud'}
             </button>
+
+            {/* Same claimed-identity picker surfaced on the caller view */}
+            {canPickIdentity && (
+              <>
+                <div className="freeze-divider" />
+                {renderIdentityPicker()}
+              </>
+            )}
           </section>
         )}
       </div>

@@ -1,0 +1,209 @@
+/* CombinedRiskPanel — shown at EscalationStage === 'protect' (Requirement 13). */
+
+.crp-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(6, 10, 20, 0.72);
+  backdrop-filter: blur(6px);
+}
+
+.crp-card {
+  width: 100%;
+  max-width: 460px;
+  padding: 1.5rem;
+  border-radius: 16px;
+  background: rgba(18, 24, 38, 0.96);
+  border: 1px solid rgba(0, 229, 255, 0.18);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+  color: #e8edf5;
+}
+
+.crp-overlay--high .crp-card {
+  border-color: rgba(255, 68, 68, 0.5);
+  box-shadow: 0 12px 48px rgba(255, 68, 68, 0.25);
+}
+
+.crp-overlay--medium .crp-card {
+  border-color: rgba(255, 176, 32, 0.45);
+}
+
+.crp-title {
+  margin: 0 0 1rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* ── Signal rows ── */
+.crp-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.crp-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.crp-row-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #9fb0c4;
+}
+
+.crp-row-value {
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: right;
+}
+
+.crp-unavailable {
+  font-style: italic;
+  font-weight: 500;
+  color: #7c8aa0;
+}
+
+/* ── Severity chips ── */
+.crp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.crp-chip--low {
+  color: #35f28a;
+  background: rgba(53, 242, 138, 0.12);
+  border-color: rgba(53, 242, 138, 0.3);
+}
+
+.crp-chip--suspicious {
+  color: #ffb020;
+  background: rgba(255, 176, 32, 0.12);
+  border-color: rgba(255, 176, 32, 0.3);
+}
+
+.crp-chip--high,
+.crp-chip--failed {
+  color: #ff5c72;
+  background: rgba(255, 68, 68, 0.14);
+  border-color: rgba(255, 68, 68, 0.35);
+}
+
+.crp-chip--unavailable {
+  color: #7c8aa0;
+  background: rgba(124, 138, 160, 0.12);
+  border-color: rgba(124, 138, 160, 0.25);
+  font-style: italic;
+  font-weight: 600;
+}
+
+/* ── Banner ── */
+.crp-banner {
+  margin: 1rem 0 0;
+  padding: 0.75rem 0.9rem;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.crp-overlay--high .crp-banner {
+  background: rgba(255, 68, 68, 0.1);
+  border-color: rgba(255, 68, 68, 0.3);
+}
+
+.crp-overlay--medium .crp-banner {
+  background: rgba(255, 176, 32, 0.1);
+  border-color: rgba(255, 176, 32, 0.3);
+}
+
+/* ── Report feedback ── */
+.crp-report-confirm,
+.crp-report-error {
+  margin: 0.75rem 0 0;
+  padding: 0.6rem 0.85rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.crp-report-confirm {
+  color: #35f28a;
+  background: rgba(53, 242, 138, 0.1);
+  border: 1px solid rgba(53, 242, 138, 0.3);
+}
+
+.crp-report-error {
+  color: #ff8a80;
+  background: rgba(255, 68, 68, 0.1);
+  border: 1px solid rgba(255, 68, 68, 0.3);
+}
+
+/* ── Actions ── */
+.crp-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  margin-top: 1.1rem;
+}
+
+.crp-btn {
+  padding: 0.7rem 1rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e8edf5;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.crp-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.crp-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.crp-btn--continue {
+  color: #35f28a;
+  border-color: rgba(53, 242, 138, 0.4);
+}
+
+.crp-btn--muted {
+  color: #ffb020;
+  border-color: rgba(255, 176, 32, 0.5);
+  background: rgba(255, 176, 32, 0.12);
+}
+
+.crp-btn--end {
+  color: #ff5c72;
+  border-color: rgba(255, 68, 68, 0.4);
+}
+
+.crp-btn--report {
+  color: #00e5ff;
+  border-color: rgba(0, 229, 255, 0.4);
+}

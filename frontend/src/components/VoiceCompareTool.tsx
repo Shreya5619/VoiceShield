@@ -10,6 +10,7 @@ import React, { useState, useCallback } from 'react'
 import { VoiceSampleRecorder } from './VoiceSampleRecorder'
 import { SpeakerEmbedding } from '../hooks/useFamilyContacts'
 import { apiUrl } from '../config/api'
+import { encodeWav } from '../utils/wav'
 
 // We need the raw WAV blob, not just the embedding, for the comparison request.
 // We reuse VoiceSampleRecorder but intercept the blob before it goes to the
@@ -248,26 +249,6 @@ const VoiceSlot: React.FC<SlotProps> = ({ label, slot }) => {
       )}
     </div>
   )
-}
-
-// ── WAV encoder (same as VoiceSampleRecorder) ────────────────────────────────
-
-function encodeWav(samples: Float32Array, sampleRate: number): Blob {
-  const dataSize = samples.length * 2
-  const buf = new ArrayBuffer(44 + dataSize)
-  const v = new DataView(buf)
-  const ws = (off: number, s: string) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)) }
-  ws(0, 'RIFF'); v.setUint32(4, 36 + dataSize, true); ws(8, 'WAVE')
-  ws(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true)
-  v.setUint32(24, sampleRate, true); v.setUint32(28, sampleRate * 2, true)
-  v.setUint16(32, 2, true); v.setUint16(34, 16, true)
-  ws(36, 'data'); v.setUint32(40, dataSize, true)
-  let off = 44
-  for (let i = 0; i < samples.length; i++) {
-    const s = Math.max(-1, Math.min(1, samples[i]))
-    v.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true); off += 2
-  }
-  return new Blob([buf], { type: 'audio/wav' })
 }
 
 export default VoiceCompareTool

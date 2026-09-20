@@ -18,79 +18,28 @@ export const AIWarningOverlay: React.FC<AIWarningOverlayProps> = ({
   data,
   onAcknowledge,
 }) => {
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-  const hasPlayedRef = useRef(false)
+  const hasAlertedRef = useRef(false)
 
   useEffect(() => {
-    // Play warning alert sound when AI-generated speech is detected with HIGH confidence
-    if (data.is_ai_generated && data.confidence_level === 'HIGH' && !hasPlayedRef.current) {
-      hasPlayedRef.current = true
-      playAlertSound()
+    // Deepfake detection is a silent, non-disruptive alert: vibrate the device
+    // (if supported) and show this overlay. We intentionally do NOT play any
+    // sound or speak aloud, and the call is never stopped or muted here.
+    if (data.is_ai_generated && data.confidence_level === 'HIGH' && !hasAlertedRef.current) {
+      hasAlertedRef.current = true
+      vibrateAlert()
     }
   }, [data])
 
-  const playAlertSound = () => {
-    // Create alert sound programmatically using Web Audio API
+  const vibrateAlert = () => {
+    // Vibration API — silently buzz the device in an urgent pattern.
+    // Not supported on all browsers/desktops; degrade gracefully if absent.
     try {
-      const AudioContext = window.AudioContext || (window as any).webkitAudioContext
-      if (!AudioContext) return
-      
-      const ctx = new AudioContext()
-      const oscillator = ctx.createOscillator()
-      const gainNode = ctx.createGain()
-
-      oscillator.connect(gainNode)
-      gainNode.connect(ctx.destination)
-
-      // Create a harsh alarm-like sound
-      oscillator.type = 'sawtooth'
-      oscillator.frequency.setValueAtTime(880, ctx.currentTime) // A5
-      oscillator.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.5)
-      oscillator.frequency.setValueAtTime(880, ctx.currentTime + 1.0)
-      oscillator.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 1.5)
-
-      // Volume envelope
-      gainNode.gain.setValueAtTime(0.8, ctx.currentTime)
-      gainNode.gain.exponentialRampToValueAtTime(0.1, ctx.currentTime + 0.3)
-      gainNode.gain.setValueAtTime(0.8, ctx.currentTime + 0.5)
-      gainNode.gain.exponentialRampToValueAtTime(0.1, ctx.currentTime + 0.8)
-      gainNode.gain.setValueAtTime(0.8, ctx.currentTime + 1.0)
-      gainNode.gain.exponentialRampToValueAtTime(0.1, ctx.currentTime + 1.3)
-
-      oscillator.start()
-      oscillator.stop(ctx.currentTime + 1.5)
-
-      // Speak warning
-      speakWarning()
-    } catch (err) {
-      console.warn('Audio alert failed:', err)
-    }
-  }
-
-  const speakWarning = () => {
-    // Check if browser supports speech synthesis
-    if ('speechSynthesis' in window) {
-      // Cancel any pending speech
-      window.speechSynthesis.cancel()
-
-      const warningText = "CRITICAL WARNING: AI-generated speech detected. This call is likely automated or synthetic. DO NOT TRUST what you hear. HANG UP IMMEDIATELY."
-
-      const utterance = new SpeechSynthesisUtterance(warningText)
-      utterance.volume = 1.0
-      utterance.rate = 0.9
-      utterance.pitch = 1.2
-
-      // Try to find a good voice for warnings
-      const voices = window.speechSynthesis.getVoices()
-      const warningVoice = voices.find(v => 
-        v.name.includes('Google') || v.name.includes('Zira') || v.name.includes('David')
-      ) || voices[0]
-      
-      if (warningVoice) {
-        utterance.voice = warningVoice
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        // Pattern: buzz, pause, buzz, pause, buzz (milliseconds)
+        navigator.vibrate([300, 150, 300, 150, 300])
       }
-
-      window.speechSynthesis.speak(utterance)
+    } catch (err) {
+      console.warn('Vibration not available:', err)
     }
   }
 
@@ -99,19 +48,6 @@ export const AIWarningOverlay: React.FC<AIWarningOverlayProps> = ({
     if (data.confidence_level === 'HIGH') return 'critical'
     if (data.confidence_level === 'MEDIUM') return 'warning'
     return 'info'
-  }
-
-  const getAlertTitle = () => {
-    if (!data.is_ai_generated) return 'Audio Analysis Complete'
-    if (data.confidence_level === 'HIGH') return 'CRITICAL: AI-GENERATED SPEECH DETECTED!'
-    if (data.confidence_level === 'MEDIUM') return 'WARNING: LIKELY AI-GENERATED'
-    return 'Audio Analysis Results'
-  }
-
-  const getAlertIcon = () => {
-    if (data.confidence_level === 'HIGH') return 'CRITICAL'
-    if (data.confidence_level === 'MEDIUM') return 'WARNING'
-    return 'SUCCESS'
   }
 
   return (

@@ -4,20 +4,39 @@
   useState,
   useCallback,
   useMemo,
+  useReducer,
 } from 'react'
 import { CallerInfo } from './CallerPicker'
 import FreezeOverlay from './FreezeOverlay'
-import VoiceMismatchOverlay from './VoiceMismatchOverlay'
 import AIWarningOverlay from './AIWarningOverlay'
+import SecurityQuestionOverlay from './SecurityQuestionOverlay'
+import CombinedRiskPanel from './CombinedRiskPanel'
+import ScreenViewToggle from './ScreenViewToggle'
 import useTranscription from '../hooks/useTranscription'
 import useVADDiarization, { EnrolledSpeaker, SegmentResult } from '../hooks/useVADDiarization'
 import { ScamAnalysisResult } from '../types'
 import AudioProcessor from '../services/AudioProcessor'
+import { encodeWav } from '../utils/wav'
 import AudioQuantizer from '../services/AudioQuantizer'
 import AudioResampler from '../services/AudioResampler'
 import '../styles/ActiveCallScreen.css'
 import { apiUrl } from '../config/api'
-import { useVoiceMatch } from '../hooks/useVoiceMatch'
+import { useVoiceVerification } from '../hooks/useVoiceVerification'
+import { useFamilyContacts, FamilyContact } from '../hooks/useFamilyContacts'
+import {
+  CallSecurityProvider,
+  type EscalationStage,
+  type ScreenView,
+} from '../context/CallSecurityContext'
+import {
+  fuseRisk,
+  voiceMatchSeverity,
+  scamSeverity,
+  aiVoiceSeverity,
+  type RiskInputs,
+  type Signal,
+  type SecurityQuestionOutcome,
+} from '../services/riskEngine'
 
 interface ActiveCallScreenProps {
   caller: CallerInfo
@@ -31,6 +50,44 @@ interface ActiveCallScreenProps {
 }
 
 const SCAM_THRESHOLD = 0.70  // 70% - matches backend AgentCore threshold
+/** Scam probability at/above which detect → suspect (offer the identity prompt). */
+const SUSPICION_SCAM_THRESHOLD = 0.60
+/** Synthetic-indicator percent at/above which the AI-voice signal is "suspicious+". */
+const SUSPICION_AI_THRESHOLD = 40
+
+/* ── EscalationStage ordering (task 10.1) ──────────────────────────────────
+ * The escalation narrative advances strictly one step at a time in this fixed
+ * order. Any request to jump ahead or move backward is rejected and the current
+ * stage is retained (Requirements 1.8, 1.9). This logic only ever runs for
+ * unknown callers — the isUnknown === false branch never touches it.
+ */
+const ESCALATION_ORDER: readonly EscalationStage[] = [
+  'detect',
+  'suspect',
+  'identify',
+  'challenge',
+  'verify',
+  'protect',
+]
+
+type EscalationAction = { type: 'advance'; to: EscalationStage } | { type: 'reset' }
+
+/**
+ * Reducer that only permits advancing to the immediate successor of the current
+ * stage. Out-of-order (skip-ahead or backward) transitions are ignored, leaving
+ * the current stage unchanged.
+ */
+function escalationReducer(
+  current: EscalationStage,
+  action: EscalationAction,
+): EscalationStage {
+  if (action.type === 'reset') return 'detect'
+  const currentIndex = ESCALATION_ORDER.indexOf(current)
+  const targetIndex = ESCALATION_ORDER.indexOf(action.to)
+  // Only advance by exactly one step; reject everything else.
+  if (targetIndex === currentIndex + 1) return action.to
+  return current
+}
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 
@@ -68,28 +125,6 @@ function loadSelfEmbedding(ownerPhone: string | undefined): number[] | null {
   }
 }
 
-/** Encode Float32Array samples as WAV blob */
-function encodeWav(samples: Float32Array, sampleRate: number): Blob {
-  const dataSize = samples.length * 2
-  const buf = new ArrayBuffer(44 + dataSize)
-  const v = new DataView(buf)
-  const ws = (off: number, s: string) => {
-    for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i))
-  }
-  ws(0, 'RIFF'); v.setUint32(4, 36 + dataSize, true); ws(8, 'WAVE')
-  ws(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true)
-  v.setUint32(24, sampleRate, true); v.setUint32(28, sampleRate * 2, true)
-  v.setUint16(32, 2, true); v.setUint16(34, 16, true)
-  ws(36, 'data'); v.setUint32(40, dataSize, true)
-  let off = 44
-  for (let i = 0; i < samples.length; i++) {
-    const s = Math.max(-1, Math.min(1, samples[i]))
-    v.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true)
-    off += 2
-  }
-  return new Blob([buf], { type: 'audio/wav' })
-}
-
 /* ── Component ───────────────────────────────────────────────────────────── */
 
 export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
@@ -117,10 +152,31 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
   const [isSpeaker, setIsSpeaker] = useState(false)
   const [showFreeze, setShowFreeze] = useState(false)
   const isRecordingRef = useRef(false)
+  // Controlled active view for the Protected/Caller toggle. Owned here so the
+  // full-screen protected-side SecurityQuestionOverlay can be suppressed while
+  // the CALLER view is active — otherwise it would cover the caller's answer
+  // input during the 'challenge' stage (BUG 1 fix).
+  const [screenView, setScreenView] = useState<ScreenView>('protected')
 
   /* ── Voice verification state ─────────────────────────────────────────── */
-  const [showMismatch, setShowMismatch] = useState(false)
   const [callVerified, setCallVerified] = useState(false)
+
+  /* ── Escalation flow state (unknown callers only — task 10.1/10.3) ────── */
+  const [escalationStage, dispatchStage] = useReducer(
+    escalationReducer,
+    'detect',
+  )
+  // The contact the caller claims to be, once the user selects it.
+  const [selectedContact, setSelectedContact] = useState<FamilyContact | null>(null)
+  // Outcome of the security challenge (drives fusion + the caller view).
+  const [securityQuestionOutcome, setSecurityQuestionOutcome] =
+    useState<SecurityQuestionOutcome>('unanswered')
+  // Latest AI-voice signal, derived from deepfake detection results.
+  const [aiVoiceSignal, setAiVoiceSignal] = useState<Signal>({
+    value: null,
+    severity: 'unavailable',
+    available: false,
+  })
 
   /* ── Scam state ───────────────────────────────────────────────────────── */
   const [scamProb,       setScamProb]       = useState(0)
@@ -141,6 +197,10 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
   const analyzingRef     = useRef(false)
   // Guard so the emergency-contact alert is sent only once per call
   const spamAlertSentRef = useRef(false)
+  // Holds the latest useVoiceVerification.ingestCallerAudio so handleCallerAudio
+  // (declared earlier in the component) can forward caller audio into the
+  // rolling buffer without a declaration-order problem.
+  const ingestCallerAudioRef = useRef<((blob: Blob) => void) | null>(null)
 
   /* ── Notify emergency contacts (fire-and-forget, deduped) ─────────────── */
   const sendSpamAlert = useCallback(
@@ -188,6 +248,16 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
   /* ── Family contact from CallerInfo ──────────────────────────────────── */
   const familyContact = caller.isUnknown ? null : (caller.familyContact ?? null)
 
+  /* ── Enrolled contacts (for the unknown-caller identity prompt) ───────── */
+  // Load ALL of the owner's enrolled contacts; the IdentityPrompt is populated
+  // with those that have a stored speakerEmbedding (Req 1.4). Only relevant for
+  // unknown callers — known contacts never render the prompt.
+  const { contacts: allContacts } = useFamilyContacts(ownerPhone ?? '')
+  const enrolledContacts = useMemo<FamilyContact[]>(
+    () => allContacts.filter((c) => c.speakerEmbedding),
+    [allContacts],
+  )
+
   /* ── Build enrolled-speakers list ────────────────────────────────────── */
   const enrolledSpeakers = useMemo<EnrolledSpeaker[]>(() => {
     const list: EnrolledSpeaker[] = []
@@ -229,6 +299,11 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
   const handleCallerAudio = useCallback(async (blob: Blob) => {
     // Debug: Log when caller audio is received
     console.log('[ActiveCall] Caller audio received, blob size:', blob.size, 'type:', blob.type)
+
+    // Feed the SAME caller-only 3 s window into the on-demand verification
+    // rolling buffer (no second mic capture). No-op for known contacts because
+    // the hook is gated on isUnknown (Req 1.1, 2.1).
+    ingestCallerAudioRef.current?.(blob)
     
     // Run deepfake detection on caller audio (only once per call)
     if (!aiWarningTriggeredRef.current && !callVerified) {
@@ -294,14 +369,38 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
     setSpeakerRoute(speakerSummary)
   }, [speakerSummary])
 
-  /* ── Voice match (existing 5-second verification) ────────────────────── */
-  const { voiceMatchState, voiceMatchResult } = useVoiceMatch(familyContact)
+  /* ── On-demand voice verification (unknown callers only) ─────────────── */
+  // Replaces the old auto 5-second useVoiceMatch. The rolling buffer is fed by
+  // the SAME caller-only audio stream from useVADDiarization.onCallerAudio (see
+  // handleCallerAudio below), so there is no second mic capture. Comparison
+  // only runs on demand via verifyAgainst(contact).
+  const {
+    verificationState,
+    verificationResult,
+    ingestCallerAudio,
+    verifyAgainst,
+    markVerified,
+    reset: resetVerification,
+  } = useVoiceVerification({ isUnknown: caller.isUnknown })
+
+  // Expose the (stable) ingest callback to handleCallerAudio via a ref.
+  useEffect(() => {
+    ingestCallerAudioRef.current = ingestCallerAudio
+    return () => {
+      ingestCallerAudioRef.current = null
+    }
+  }, [ingestCallerAudio])
 
   /* ── Deepfake detection audio processor ───────────────────────────────── */
   // Separate audio processor for deepfake detection (captures all audio)
   const deepfakeAudioProcessorRef = useRef<AudioProcessor | null>(null)
   const deepfakeAudioChunksRef = useRef<Uint8Array[]>([])
   const deepfakeAudioResolverRef = useRef<(() => void) | null>(null)
+  // Dedicated accumulation for the on-demand voice-verification RollingSnippet
+  // buffer. Kept SEPARATE from deepfakeAudioChunksRef so the two consumers
+  // (deepfake detection + verification buffer) never starve each other by
+  // draining the same ref (BUG 2 fix). Holds resampled 16 kHz mono frames.
+  const bufferChunksRef = useRef<Float32Array[]>([])
 
   useEffect(() => {
     // Only set up deepfake audio processor for unknown callers
@@ -330,13 +429,18 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
               const resampled = resampler.resample(frame.data)
               const quantized = AudioQuantizer.quantize(resampled)
               const audioData = new Uint8Array(quantized.buffer)
-              
+
               // Buffer chunks for deepfake detection
               deepfakeAudioChunksRef.current.push(audioData)
               if (deepfakeAudioResolverRef.current) {
                 deepfakeAudioResolverRef.current()
                 deepfakeAudioResolverRef.current = null
               }
+
+              // Independently accumulate the SAME resampled 16 kHz mono frame
+              // for the verification rolling buffer (BUG 2 fix). A copy is
+              // stored so the deepfake path's Uint8Array view is unaffected.
+              bufferChunksRef.current.push(new Float32Array(resampled))
             } catch (err) {
               console.error('Deepfake audio processing error:', err)
             }
@@ -357,8 +461,55 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
           deepfakeAudioProcessorRef.current.cleanup()
           deepfakeAudioProcessorRef.current = null
         }
+        bufferChunksRef.current = []
       }
     }
+  }, [caller.isUnknown])
+
+  /* ── Always-on caller-audio feed → verification rolling buffer ─────────── */
+  // BUG 2 fix: for unknown callers, diarization only runs when there are
+  // enrolled speakers, so the RollingSnippetBuffer that useVoiceVerification
+  // compares against would otherwise stay empty and every verifyAgainst()
+  // would fall through to 'skipped' without ever POSTing /api/verify-speaker.
+  //
+  // This effect drains a COPY of recently captured caller samples every
+  // ~1500 ms, encodes them to a 16 kHz mono WAV and feeds the rolling buffer
+  // via ingestCallerAudio. It is INDEPENDENT of diarization and, unlike the
+  // deepfake effect, is NOT gated by aiWarningTriggeredRef and does NOT stop
+  // after the first detection — it keeps the buffer filling for the whole
+  // call so a FreshSegment (minSegmentMs default 4000) can be assembled.
+  useEffect(() => {
+    if (!caller.isUnknown) return
+
+    const feedBuffer = () => {
+      if (!isRecordingRef.current) return
+      // Drain everything captured since the last tick.
+      const chunks = bufferChunksRef.current.splice(0)
+      if (chunks.length === 0) return
+
+      const totalSamples = chunks.reduce((sum, c) => sum + c.length, 0)
+      if (totalSamples === 0) return
+
+      const samples = new Float32Array(totalSamples)
+      let offset = 0
+      for (const chunk of chunks) {
+        samples.set(chunk, offset)
+        offset += chunk.length
+      }
+
+      try {
+        // encodeWav produces a mono 16-bit PCM WAV the rolling buffer can
+        // decode. ~1500 ms of 16 kHz audio per push means the buffer reaches
+        // its 4 s minimum segment within a few seconds.
+        const blob = encodeWav(samples, 16000)
+        ingestCallerAudioRef.current?.(blob)
+      } catch (err) {
+        console.error('[ActiveCall] Buffer feed encode error:', err)
+      }
+    }
+
+    const intervalId = setInterval(feedBuffer, 1500)
+    return () => clearInterval(intervalId)
   }, [caller.isUnknown])
 
   /* ── Process deepfake audio chunks and run detection ──────────────────── */
@@ -426,25 +577,116 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
     return () => clearInterval(intervalId)
   }, [caller.isUnknown, callVerified])
 
-  /* ── Open mismatch overlay when voice check fails ────────────────────── */
+  /* ── Derive the AI-voice signal from deepfake results (unknown only) ──── */
+  // Feeds the RiskEngine. syntheticPercent = ai_probability * 100 (Req 11.2).
   useEffect(() => {
-    if (
-      voiceMatchState === 'done' &&
-      voiceMatchResult !== null &&
-      !voiceMatchResult.verified &&
-      !callVerified
-    ) {
-      setShowMismatch(true)
-    }
-  }, [voiceMatchState, voiceMatchResult, callVerified])
+    if (!caller.isUnknown) return
+    if (!aiWarningData || typeof aiWarningData.ai_probability !== 'number') return
+    const syntheticPercent = Math.max(0, Math.min(100, aiWarningData.ai_probability * 100))
+    setAiVoiceSignal({
+      value: syntheticPercent,
+      severity: aiVoiceSeverity(syntheticPercent),
+      available: true,
+    })
+  }, [caller.isUnknown, aiWarningData])
 
-  /* ── Verified: stop all monitoring ───────────────────────────────────── */
+  /* ── Verified: stop all monitoring (reused by both flows) ─────────────── */
   const handleVerified = useCallback(() => {
-    setShowMismatch(false)
     setCallVerified(true)
     stopRecording()
     stopDiarization()
   }, [stopRecording, stopDiarization])
+
+  /* ── detect → suspect: cross the suspicion threshold (unknown only) ───── */
+  // Offer the identity prompt once scam risk OR the AI-voice indicator reaches
+  // its suspicion threshold (Req 1.3). Strictly-ordered advance means this only
+  // ever moves detect → suspect; later stages are unaffected.
+  useEffect(() => {
+    if (!caller.isUnknown) return
+    if (escalationStage !== 'detect') return
+    if (callVerified) return
+    const scamSuspicious = scamProb >= SUSPICION_SCAM_THRESHOLD
+    const aiSuspicious =
+      aiVoiceSignal.available &&
+      aiVoiceSignal.value !== null &&
+      aiVoiceSignal.value >= SUSPICION_AI_THRESHOLD
+    if (scamSuspicious || aiSuspicious) {
+      dispatchStage({ type: 'advance', to: 'suspect' })
+    }
+  }, [caller.isUnknown, escalationStage, callVerified, scamProb, aiVoiceSignal])
+
+  /* ── verificationState → challenge / verify → protect (unknown only) ──── */
+  // When the on-demand comparison resolves:
+  //   fail → advance to `challenge` (SecurityQuestionOverlay renders)
+  //   pass → advance verify → protect and stop monitoring (like handleVerified)
+  useEffect(() => {
+    if (!caller.isUnknown) return
+    if (verificationState === 'fail') {
+      dispatchStage({ type: 'advance', to: 'challenge' })
+    } else if (verificationState === 'pass' && !callVerified) {
+      // pass reached directly from identify (strong match) → verify → protect
+      dispatchStage({ type: 'advance', to: 'verify' })
+      dispatchStage({ type: 'advance', to: 'protect' })
+      handleVerified()
+    }
+  }, [caller.isUnknown, verificationState, callVerified, handleVerified])
+
+  /* ── Identity prompt handlers (task 10.3) ─────────────────────────────── */
+  const handleIdentitySelect = useCallback(
+    (contact: FamilyContact) => {
+      setSelectedContact(contact)
+      dispatchStage({ type: 'advance', to: 'identify' })
+      verifyAgainst(contact)
+    },
+    [verifyAgainst],
+  )
+
+  const handleIdentitySkip = useCallback(() => {
+    // Skip → verification skipped, keep monitoring the call (Req 1.6). The
+    // stage stays at `suspect`; the prompt is dismissed by clearing selection.
+    resetVerification()
+    setSelectedContact(null)
+  }, [resetVerification])
+
+  /* ── Security challenge outcomes (challenge → verify → protect) ───────── */
+  const completeChallenge = useCallback(
+    (outcome: SecurityQuestionOutcome) => {
+      setSecurityQuestionOutcome(outcome)
+      dispatchStage({ type: 'advance', to: 'verify' })
+      dispatchStage({ type: 'advance', to: 'protect' })
+      markVerified()
+      handleVerified()
+    },
+    [markVerified, handleVerified],
+  )
+
+  const handleAnswerSubmitted = useCallback(
+    (_answer: string) => {
+      // A submitted answer stops monitoring and trusts the call (Req 5.1–5.3).
+      completeChallenge('correct')
+    },
+    [completeChallenge],
+  )
+
+  const handleTrustCall = useCallback(() => {
+    completeChallenge('bypassed')
+  }, [completeChallenge])
+
+  /* ── Caller-view answer bridge (shared ScreenView state, Req 14.5/14.6) ─ */
+  const handleCallerAnswer = useCallback(
+    (_answer: string, outcome: SecurityQuestionOutcome) => {
+      setSecurityQuestionOutcome(outcome)
+      // A wrong answer from the caller view escalates the challenge; a correct
+      // answer trusts the call. Either way monitoring stops and we reach protect.
+      if (escalationStage === 'challenge') {
+        dispatchStage({ type: 'advance', to: 'verify' })
+        dispatchStage({ type: 'advance', to: 'protect' })
+        if (outcome !== 'incorrect') markVerified()
+        handleVerified()
+      }
+    },
+    [escalationStage, markVerified, handleVerified],
+  )
 
   /* ── Start audio pipeline on mount ───────────────────────────────────── */
   useEffect(() => {
@@ -477,6 +719,8 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
       stopRecording()
       stopDiarization()
       isRecordingRef.current = false
+      // Release the rolling buffer + abort any in-flight comparison (Req 6.3).
+      resetVerification()
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -505,7 +749,10 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
   /* ── Predict-scam polling (debounced 1 s) ─────────────────────────────── */
   useEffect(() => {
     if (!fullTranscriptForScam) return
-    if (callVerified) return
+    // Suppress scam scoring once the call is verified — either via the existing
+    // callVerified path (known contacts) or a passed voice verification on an
+    // unknown call (Req 5.5).
+    if (callVerified || verificationState === 'pass') return
 
     const timer = setTimeout(async () => {
       try {
@@ -563,7 +810,7 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
       } catch { /* ignore network errors */ }
     }, 1000)
     return () => clearTimeout(timer)
-  }, [fullTranscriptForScam, callVerified, detectedLanguage])
+  }, [fullTranscriptForScam, callVerified, verificationState, detectedLanguage])
 
   /* ── End call ─────────────────────────────────────────────────────────── */
   const handleEndCall = useCallback(() => {
@@ -575,8 +822,13 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
     spamAlertSentRef.current = false
     setShowAiWarning(false)
     setAiWarningData(null)
+    // Release capture resources + reset the escalation flow (Req 6.3).
+    resetVerification()
+    dispatchStage({ type: 'reset' })
+    setSelectedContact(null)
+    setSecurityQuestionOutcome('unanswered')
     onEndCall()
-  }, [stopRecording, stopDiarization, onEndCall])
+  }, [stopRecording, stopDiarization, resetVerification, onEndCall])
 
   const handleMarkAsSpam = useCallback(async () => {
     try {
@@ -619,10 +871,71 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
     .filter(([l]) => l !== 'UNKNOWN')
     .reduce((sum, [, ms]) => sum + ms, 0)
 
+  /* ── Fused risk assessment (unknown callers only — task 10.3) ─────────── */
+  // Voice-match signal: available once a comparison has resolved to a result.
+  // A failed comparison with no result maps to the `failed` severity so the
+  // RiskEngine still counts it as a severe signal.
+  const voiceMatchSignal = useMemo<Signal>(() => {
+    if (verificationResult) {
+      return {
+        value: verificationResult.matchPercent,
+        severity: voiceMatchSeverity(verificationResult.matchPercent),
+        available: true,
+      }
+    }
+    if (verificationState === 'fail') {
+      return { value: 0, severity: 'failed', available: true }
+    }
+    return { value: null, severity: 'unavailable', available: false }
+  }, [verificationResult, verificationState])
+
+  const conversationContextSignal = useMemo<Signal>(() => {
+    if (scamProb <= 0) {
+      return { value: null, severity: 'unavailable', available: false }
+    }
+    const scamPercent = scamProb * 100
+    return {
+      value: scamPercent,
+      severity: scamSeverity(scamPercent),
+      available: true,
+    }
+  }, [scamProb])
+
+  const assessment = useMemo(
+    () =>
+      fuseRisk({
+        voiceMatch: voiceMatchSignal,
+        aiVoice: aiVoiceSignal,
+        conversationContext: conversationContextSignal,
+        securityQuestion: securityQuestionOutcome,
+      } satisfies RiskInputs),
+    [voiceMatchSignal, aiVoiceSignal, conversationContextSignal, securityQuestionOutcome],
+  )
+
+  /* ── Two-tier impersonation wording (task 10.4) ───────────────────────── */
+  // Tentative "⚠️ Possible impersonation" before fusion resolves; escalate to
+  // "🚨 Impersonation risk: HIGH" ONLY when the voice mismatched AND the
+  // security question was answered incorrectly. Never definitive fraud wording.
+  const voiceMismatched =
+    verificationState === 'fail' ||
+    (verificationResult !== null && !verificationResult.verified)
+  const impersonationBanner =
+    voiceMismatched && securityQuestionOutcome === 'incorrect'
+      ? '🚨 Impersonation risk: HIGH'
+      : '⚠️ Possible impersonation'
+
+  // Report handler for the CombinedRiskPanel — reuse the emergency-contact alert.
+  const handleReportRisk = useCallback(async () => {
+    await sendSpamAlert(bedrockResult)
+  }, [sendSpamAlert, bedrockResult])
+
   /* ── Render ───────────────────────────────────────────────────────────── */
-  return (
-    <>
-      <div className="active-call-screen">
+  // The main call UI (protected-device view). For unknown callers this is
+  // rendered inside the ScreenViewToggle so the caller-simulation view can share
+  // the same escalation/verification/risk state; for known contacts it renders
+  // directly and unchanged.
+  const callUI = (
+    <div className="active-call-screen">
 
         {/* Status bar */}
         <div className="call-statusbar">
@@ -812,39 +1125,46 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
             </div>
           )}
 
-          {/* Voice match status badge */}
-          {familyContact?.speakerEmbedding && (
-            <div className="voice-match-badge" data-state={voiceMatchState}>
-              {voiceMatchState === 'sampling' && (
-                <span className="vmb-sampling">🎙️ Verifying voice…</span>
+          {/* Voice verification status badge (unknown callers) */}
+          {caller.isUnknown && (verificationState !== 'idle' || verificationResult) && (
+            <div className="voice-match-badge" data-state={verificationState}>
+              {verificationState === 'capturing' && (
+                <span className="vmb-sampling">🎙️ Listening…</span>
               )}
-              {voiceMatchState === 'comparing' && (
+              {verificationState === 'comparing' && (
                 <span className="vmb-comparing">🔄 Checking identity…</span>
               )}
-              {voiceMatchState === 'done' && voiceMatchResult && callVerified && (
+              {verificationResult && callVerified && (
                 <span className="vmb-result" style={{ color: '#4ade80' }}>
-                  ✅ Verified — {voiceMatchResult.matchPercent.toFixed(1)}%
+                  ✅ Verified — {verificationResult.matchPercent.toFixed(1)}%
                 </span>
               )}
-              {voiceMatchState === 'done' && voiceMatchResult && !callVerified && (
+              {verificationResult && !callVerified && (
                 <span
                   className="vmb-result"
                   style={{
-                    color: voiceMatchResult.matchPercent >= 60
+                    color: verificationResult.matchPercent >= 60
                       ? '#4ade80'
-                      : voiceMatchResult.matchPercent >= 40
+                      : verificationResult.matchPercent >= 40
                       ? '#facc15'
                       : '#ff6b6b',
                   }}
                 >
-                  {voiceMatchResult.verified ? '✅' : '⚠️'}{' '}
-                  Voice match: <strong>{voiceMatchResult.matchPercent.toFixed(1)}%</strong>
-                  {!voiceMatchResult.verified && ' — checking security…'}
+                  {verificationResult.verified ? '✅' : '⚠️'}{' '}
+                  Voice match: <strong>{verificationResult.matchPercent.toFixed(1)}%</strong>
+                  {!verificationResult.verified && ' — checking security…'}
                 </span>
               )}
-              {voiceMatchState === 'skipped' && (
+              {verificationState === 'skipped' && !verificationResult && (
                 <span className="vmb-skipped">— voice check skipped</span>
               )}
+            </div>
+          )}
+
+          {/* Two-tier impersonation banner (unknown callers, pre-protect) */}
+          {caller.isUnknown && !callVerified && escalationStage !== 'detect' && escalationStage !== 'protect' && (
+            <div className="impersonation-banner" role="status">
+              {impersonationBanner}
             </div>
           )}
 
@@ -899,8 +1219,9 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
           </div>
         </div>
 
-        {/* Scam risk bar — hidden once call is verified */}
-        {!callVerified && (
+        {/* Scam risk bar — hidden once the call is verified (known contact
+            callVerified, or a passed voice verification on an unknown call) */}
+        {!callVerified && verificationState !== 'pass' && (
           <div className="scam-risk-bar-wrap">
             <div className="scam-risk-header">
               <span className="scam-risk-label">🛡️ Scam Risk</span>
@@ -923,16 +1244,71 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
           </div>
         )}
 
-      </div>
+    </div>
+  )
 
-      {/* Voice mismatch overlay */}
-      {showMismatch && familyContact && voiceMatchResult && (
-        <VoiceMismatchOverlay
-          contact={familyContact}
-          matchResult={voiceMatchResult}
-          onVerified={handleVerified}
-          onEndCall={handleEndCall}
+  return (
+    <CallSecurityProvider
+      escalationStage={escalationStage}
+      verificationState={verificationState}
+      verificationResult={verificationResult}
+      assessment={assessment}
+      securityQuestionOutcome={securityQuestionOutcome}
+      onCallerAnswer={handleCallerAnswer}
+      screenView={screenView}
+      onScreenViewChange={setScreenView}
+    >
+      {/* Known contacts render the call UI directly (unchanged). Unknown
+          callers render it inside the Protected/Caller toggle so both views
+          share the same escalation/verification/risk state (Req 14.2, 14.8). */}
+      {caller.isUnknown ? (
+        <ScreenViewToggle
+          protectedView={callUI}
+          // BUG 1 fix: surface the ACTUAL selected contact's security question
+          // to the caller view so the caller can be challenged + answer it.
+          // Falls back to the default when no contact is selected or the
+          // contact has a blank question.
+          securityQuestion={
+            selectedContact?.securityQuestion?.trim() || 'What is your full name?'
+          }
         />
+      ) : (
+        callUI
+      )}
+
+      {/* ── Unknown-caller escalation overlays (gated on isUnknown) ─────── */}
+      {caller.isUnknown && (
+        <>
+          {/* Challenge: voice comparison failed → security question.
+              Only covers the PROTECTED view — when the caller switches to the
+              Caller view they must be able to reach the question + answer input
+              (BUG 1 fix), so the full-screen overlay is suppressed there. */}
+          {escalationStage === 'challenge' &&
+            verificationState === 'fail' &&
+            selectedContact &&
+            verificationResult &&
+            screenView === 'protected' && (
+              <SecurityQuestionOverlay
+                contact={selectedContact}
+                verificationResult={verificationResult}
+                onAnswerSubmitted={handleAnswerSubmitted}
+                onTrustCall={handleTrustCall}
+                onMarkAsScam={handleEndCall}
+              />
+            )}
+
+          {/* Protect: combined multi-signal risk panel */}
+          {escalationStage === 'protect' && (
+            <CombinedRiskPanel
+              assessment={assessment}
+              isMuted={isMuted}
+              onContinue={() => setCallVerified(true)}
+              onToggleMute={() => setIsMuted((m) => !m)}
+              onEndCall={handleEndCall}
+              onReport={handleReportRisk}
+            />
+          )}
+        </>
       )}
 
       {/* AI-generated speech warning overlay */}
@@ -963,9 +1339,18 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
           }}
           onMarkAsSpam={handleMarkAsSpam}
           languageCode={languageCode}
+          {...(caller.isUnknown
+            ? {
+                enrolledContacts,
+                onSelectClaimedIdentity: handleIdentitySelect,
+                onSkipVerification: handleIdentitySkip,
+                claimedContactName: selectedContact?.name ?? null,
+                verificationInProgress: verificationState === 'comparing',
+              }
+            : {})}
         />
       )}
-    </>
+    </CallSecurityProvider>
   )
 }
 
